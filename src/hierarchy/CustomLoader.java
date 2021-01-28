@@ -1,4 +1,4 @@
-package hierarchy.loadersAdapters;
+package hierarchy;
 
 public class CustomLoader extends ClassLoader{
 	private byte[] clazz;

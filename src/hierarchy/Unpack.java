@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 public class Unpack {	
 	private Path warDir;
 	public Unpack() throws IOException {
-		warDir = Files.createDirectory(Paths.get("/home/pcadmin/eclipse-workspace/Inspector/SampleWar"));
+		warDir = Files.createDirectory(Paths.get("/home/pcadmin/Sample"));
 	}
 	// Return classloader for jar file entries in lib directory to feed to reflections
 	public ClassLoader getLibLoader(Path warPath) throws IOException {
@@ -106,13 +106,14 @@ public class Unpack {
 		return clazzes;
 	}
 
-    public static ClassLoader getJarClassLoader(Path ... jarPaths) throws IOException {
+    public ClassLoader getJarClassLoader(Path ... jarPaths) throws IOException {
         final List<URL> classPathUrls = new ArrayList<>(jarPaths.length);
         for (Path jarPath : jarPaths) {
             if (!Files.exists(jarPath) || Files.isDirectory(jarPath)) {
                 throw new IllegalArgumentException("Path \"" + jarPath + "\" is not a path to a file.");
             }
             classPathUrls.add(jarPath.toUri().toURL());
+            decompress(jarPath, warDir);
         }
         URLClassLoader classLoader = new URLClassLoader(classPathUrls.toArray(new URL[classPathUrls.size()]));
         return classLoader;
@@ -122,8 +123,8 @@ public class Unpack {
      * Recursively delete the directory root and all its contents
      * @param root Root directory to be deleted
      */
-    public static void deleteDirectory(Path root) throws IOException {
-        Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+    public void deleteDirectory() throws IOException {
+        Files.walkFileTree(warDir, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 Files.delete(file);
@@ -149,5 +150,3 @@ public class Unpack {
         }
     }
 }
-
-
