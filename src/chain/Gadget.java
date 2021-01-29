@@ -45,9 +45,7 @@ public class Gadget {
 		List<Gadget> childrenForThisMethod = new ArrayList<Gadget>();
 		String owner = method.getOwner(); // omit method descriptor first
 		owner = owner.replaceAll("/", "\\.");
-		System.out.println(owner);
 		String methodName = method.getName();
-		System.out.println(methodName);
 		Map<Class<?>, byte[]> subtypes;
 		if (Enumerate.hierarchy.containsKey(owner)) {
 			subtypes = Enumerate.hierarchy.get(owner);

@@ -1,0 +1,17 @@
+/home/pcadmin/eclipse-workspace/Inspector/src/chain/Blacklist.java
+/home/pcadmin/eclipse-workspace/Inspector/src/hierarchy/Unpack.java
+/home/pcadmin/eclipse-workspace/Inspector/src/chain/Enumerate.java
+/home/pcadmin/eclipse-workspace/Inspector/src/precompute/ReadSystem.java
+/home/pcadmin/eclipse-workspace/Inspector/src/chain/serialcheck/CheckDeserialization.java
+/home/pcadmin/eclipse-workspace/Inspector/src/chain/serialcheck/MethodChecker.java
+/home/pcadmin/eclipse-workspace/Inspector/src/hierarchy/CustomLoader.java
+/home/pcadmin/eclipse-workspace/Inspector/src/precompute/DbConnector.java
+/home/pcadmin/eclipse-workspace/Inspector/src/methodsEval/RenderClass.java
+/home/pcadmin/eclipse-workspace/Inspector/src/hierarchy/SortClass.java
+/home/pcadmin/eclipse-workspace/Inspector/src/userFields/ConstructorTracer.java
+/home/pcadmin/eclipse-workspace/Inspector/src/chain/serialcheck/CheckForSerialization.java
+/home/pcadmin/eclipse-workspace/Inspector/src/userFields/UserFieldInterpreter.java
+/home/pcadmin/eclipse-workspace/Inspector/src/methodsEval/MethodInfo.java
+/home/pcadmin/eclipse-workspace/Inspector/src/chain/Gadget.java
+/home/pcadmin/eclipse-workspace/Inspector/src/methodsEval/MethodTracer.java
+/home/pcadmin/eclipse-workspace/Inspector/src/chain/Entry.java

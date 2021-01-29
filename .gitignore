@@ -1,0 +1,4 @@
+# ignore deprecated
+deprecated/
+# ignore dryrun
+dryrun/

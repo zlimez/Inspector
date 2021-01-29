@@ -170,6 +170,10 @@ public class SortClass {
 		return subtypes;
 	}
 	
+	/*
+	 * Side function get all root classes of target file
+	 * Get all interfaces from jdk lib
+	 */
 	public static Map<String, Map<Class<?>, byte[]>> computeHierarchy(Map<Class<?>, byte[]> allTypes, Map<Class<?>, byte[]> serialTypes) {
 		Iterator<Entry<Class<?>, byte[]>> it = allTypes.entrySet().iterator();
 		Map<String, Map<Class<?>, byte[]>> hierarchy = new HashMap<>();
