@@ -56,6 +56,11 @@ public class UserFieldInterpreter extends BasicInterpreter {
 		this.UserControlledFields = controlledFields;
 	}
 	
+	@Override
+	public BasicValue newEmptyValue(final int local) {
+		return BasicValue.UNINITIALIZED_VALUE;
+	}
+	
 	@Override // for constructors
 	public BasicValue newValue(final Type type) {
 		if (isConstructor) {
@@ -89,7 +94,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 				return super.newOperation(insn);
 		}
 	}
-	
+		
 	@Override 
 	public BasicValue unaryOperation(final AbstractInsnNode insn, final BasicValue value) throws AnalyzerException {
 		 switch (insn.getOpcode()) {
@@ -227,12 +232,8 @@ public class UserFieldInterpreter extends BasicInterpreter {
 			}
 
 			if (!map.isEmpty()) {
-				if (map.containsKey(0)) {
-					if (method.getOpcode() == INVOKESTATIC) {
-						isStatic = true;
-					} else {
-						map.remove(0);
-					}
+				if (method.getOpcode() == INVOKESTATIC) {
+					isStatic = true;
 				}
 				MethodInfo mf = new MethodInfo(method.owner, method.name, isStatic, map, method.desc);
 				nextInvokedMethod.add(mf);

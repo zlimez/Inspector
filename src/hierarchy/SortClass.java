@@ -7,12 +7,9 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Hashtable;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -169,26 +166,16 @@ public class SortClass {
 		}
 		return subtypes;
 	}
-	
-	/*
-	 * Side function get all root classes of target file
-	 * Get all interfaces from jdk lib
-	 */
-	public static Map<String, Map<Class<?>, byte[]>> computeHierarchy(Map<Class<?>, byte[]> allTypes, Map<Class<?>, byte[]> serialTypes) {
-		Iterator<Entry<Class<?>, byte[]>> it = allTypes.entrySet().iterator();
-		Map<String, Map<Class<?>, byte[]>> hierarchy = new HashMap<>();
-		while (it.hasNext()) {
-			Map.Entry<Class<?>, byte[]> e = (Map.Entry<Class<?>, byte[]>) it.next();
-			Class<?> parent = e.getKey();
-			String className = parent.getCanonicalName();
-			Map<Class<?>, byte[]> subtypes = new HashMap<Class<?>, byte[]>();
-			serialTypes.forEach((k, v) -> {
-				if (parent.isAssignableFrom(k)) {
-					subtypes.put(k, v);
-				}
-			});
-			hierarchy.put(className, subtypes);
+
+	private class CustomLoader extends ClassLoader{
+		private byte[] clazz;
+
+		protected CustomLoader(byte[] clazzBytes) {
+			this.clazz = clazzBytes;
 		}
-		return hierarchy;
+		
+		protected Class<?> findClass(String name) {
+			return defineClass(name, clazz, 0, clazz.length);
+		}
 	}
 }

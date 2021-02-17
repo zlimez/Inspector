@@ -13,29 +13,15 @@ public class Blacklist {
 	}
 	
 	// command line function
-	public static void changeList(int action, String clazz, String[] methods) {
-		if (action == -1) { // remove method from blackList
-			if (methods == null) {
-				blacklist.remove(clazz);
-			} else {
-				List<String> m = blacklist.get(clazz);
-				for (String method : methods) {
-					m.remove(method);
-				}
-			}
-		} else if (action == 1) { // add method to list
-			if (!blacklist.containsKey(clazz)) {
-				List<String> m = new ArrayList<String>();
-				for (String method : methods) {
-					m.add(method);
-				}
-				blacklist.put(clazz, m);
-			} else {
-				List<String> m = blacklist.get(clazz);
-				for (String method : methods) {
-					m.add(method);
-				}
-			}
+	public static void changeList(String clazz, String method, String desc) {
+		String signature = method + ":" + desc;
+		if (!blacklist.containsKey(clazz)) {
+			List<String> methods = new ArrayList<String>();
+			methods.add(signature);
+			blacklist.put(clazz, methods);
+		} else {
+			List<String> m = blacklist.get(clazz);
+			m.add(signature);
 		}
 	}
 }

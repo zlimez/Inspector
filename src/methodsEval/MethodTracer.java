@@ -40,6 +40,7 @@ public class MethodTracer extends MethodVisitor{
 		try {
 			a.analyze(owner, mn);
 		} catch (AnalyzerException e) {
+			e.printStackTrace();
 		}
 		nextInvokedMethods = interpreter.getNextInvokedMethods();
 //		Frame<BasicValue>[] frames = a.getFrames();
