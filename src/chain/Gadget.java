@@ -38,7 +38,11 @@ public class Gadget {
 		ClassWriter cw = new ClassWriter(cr, 0);
 		RenderClass rc = new RenderClass(cw, owner, method.getName(), method.getDesc(), userControlledArgPos);
 		cr.accept(rc, 0);
-//		rc.getNextInvokedMethods().forEach(e -> System.out.println(" " + e.getOwner() + ":" + e.getName()));
+		rc.getNextInvokedMethods().forEach(e -> {
+			System.out.print(" " + e.getOwner() + ":" + e.getName() + " ");
+			e.getUserControlledArgPos().forEach((k, v) -> System.out.print(k + ","));
+			System.out.println();
+		});
 		return rc.getNextInvokedMethods(); // find all possible candidate method calls
 	}
 	

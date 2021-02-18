@@ -70,7 +70,7 @@ public class RenderClass extends ClassVisitor {
 		} else if (name.equals(methodName) && desc.equals(descriptor)) {
 			if (ct != null) {
 				userControlledFields.putAll(ct.getUserControlledFields());
-			} // last constructor 
+			} // last constructor before specified method is inspected
 //			Iterator<Map.Entry<String, BasicValue>> it = userControlledFields.entrySet().iterator();
 //			while (it.hasNext()) {
 //				Map.Entry<String, BasicValue> field = (Map.Entry<String, BasicValue>) it.next();

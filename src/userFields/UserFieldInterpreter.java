@@ -221,6 +221,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 			MethodInsnNode method = (MethodInsnNode) insn;
 			Map<Integer, BasicValue> map = new Hashtable<>(); 
 			boolean isStatic = false;
+			MethodInfo mf;
 			
 			int i = 0;
 			while (i < values.size()) {
@@ -235,8 +236,17 @@ public class UserFieldInterpreter extends BasicInterpreter {
 				if (method.getOpcode() == INVOKESTATIC) {
 					isStatic = true;
 				}
-				MethodInfo mf = new MethodInfo(method.owner, method.name, isStatic, map, method.desc);
-				nextInvokedMethod.add(mf);
+//				if (UserControlledFields.containsKey(method.owner)) {
+//					mf = new MethodInfo(method.owner, method.name, isStatic, map, method.desc, true);
+//				} else {
+//					mf = new MethodInfo(method.owner, method.name, isStatic, map, method.desc, false);
+//				} // need to be fixed so the owner corresponds to field name
+				mf = new MethodInfo(method.owner, method.name, isStatic, map, method.desc, false);
+				if (!nextInvokedMethod.contains(mf)) {
+//					if (!mf.getName().equals("toString"))
+					nextInvokedMethod.add(mf);
+				}
+//				nextInvokedMethod.add(mf);
 				return USER_DERIVED;
 			}
 		} else if (insn instanceof InvokeDynamicInsnNode) {

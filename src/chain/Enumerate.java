@@ -25,7 +25,7 @@ public class Enumerate {
 	private static Map<Class<?>, List<Object>> entryPoints;
 	private static Map<String, List<String>> blacklist; // List of interesting classes with their respective interesting methods
 	private static PrintWriter out;
-	private static int maxDepth = 10;
+	private static int maxDepth = 6;
 
 	
 	public static void main(String[] args) throws ClassNotFoundException, IOException, SQLException {
@@ -72,22 +72,24 @@ public class Enumerate {
 	public void initAllEntry() {
 		Map<Integer, BasicValue> sim = new Hashtable<Integer, BasicValue>();
 		entryPoints.forEach((k, v) -> { // account for more than one magic method per class
-			for (int i = 1; i < v.size(); i++) {
-				MethodInfo mf = (MethodInfo) v.get(i);
-				if (!mf.getMethodType()) {
-					sim.put(0, UserFieldInterpreter.USER_DERIVED);
+			if (k.getCanonicalName().equals("java.util.PriorityQueue")) {
+				for (int i = 1; i < v.size(); i++) {
+					MethodInfo mf = (MethodInfo) v.get(i);
+					if (!mf.getMethodType()) {
+						sim.put(0, UserFieldInterpreter.USER_DERIVED);
+					}
+//					int argLength = mf.getParamCount();
+//					for (int j = 1; j <= argLength; j++) {
+//						sim.put(j, UserFieldInterpreter.USER_INFLUENCED);
+//					}
+					Gadget gadget = new Gadget(k, mf, null, (byte[]) v.get(0), sim, 1);
+					try {
+						findChain(gadget);
+					} catch (FileNotFoundException | ClassNotFoundException e) {
+						e.printStackTrace();
+					}
+					sim.clear();
 				}
-//				int argLength = mf.getParamCount();
-//				for (int j = 1; j <= argLength; j++) {
-//					sim.put(j, UserFieldInterpreter.USER_INFLUENCED);
-//				}
-				Gadget gadget = new Gadget(k, mf, null, (byte[]) v.get(0), sim, 1);
-				try {
-					findChain(gadget);
-				} catch (FileNotFoundException | ClassNotFoundException e) {
-					e.printStackTrace();
-				}
-				sim.clear();
 			}
 		});
 	}
@@ -97,15 +99,6 @@ public class Enumerate {
 	public void findChain(Gadget gadget) throws FileNotFoundException, ClassNotFoundException { // depth first search
 		System.out.println(gadget.getClazz().getCanonicalName());
 		System.out.println(gadget.getMethod().getName() + ":" + gadget.getMethod().getDesc());
-		if (gadget.getBytes() == null) {
-			System.out.println("The class " + gadget.getClazz().getCanonicalName() + " is not found hence terminated path");
-			return; // when class is not included in search space
-		}
-
-		if (gadget.getDepth() >= maxDepth) {
-//			System.out.println("Max recursion depth reached");
-			return; // prevent excessive recursion
-		}
 		
 		if (blacklist.containsKey(gadget.getClazz().getCanonicalName())) {
 			String clazz = gadget.getClazz().getCanonicalName();
@@ -115,11 +108,24 @@ public class Enumerate {
 				return; // chain found parent reference to show the chain
 			}
 		}
+		
+		if (gadget.getBytes() == null) {
+			System.out.println("The class " + gadget.getClazz().getCanonicalName() + " is not found hence terminated path");
+			return; // when class is not included in search space
+		}
+
+		if (gadget.getDepth() >= maxDepth) {
+			System.out.println("Max recursion depth reached");
+			return; // prevent excessive recursion
+		}
+		
 		List<MethodInfo> next = gadget.InspectMethod();
+		
 		if (next.size() == 0) {
 			System.out.println("No next method found");
 			return;
 		} // no next method found to be invoked
+		
 		for (MethodInfo m : next) {
 //			System.out.println(m.getOwner() + ":" + m.getName());
 			List<Gadget> children = gadget.findChildren(m);
