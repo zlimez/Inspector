@@ -97,16 +97,31 @@ public class Enumerate {
 	 *  must add in queue function for BFS
 	 */
 	public void findChain(Gadget gadget) throws FileNotFoundException, ClassNotFoundException { // depth first search
-		System.out.println(gadget.getClazz().getCanonicalName());
-		System.out.println(gadget.getMethod().getName() + ":" + gadget.getMethod().getDesc());
+//		System.out.println(gadget.getClazz().getCanonicalName());
+//		System.out.println(gadget.getMethod().getName() + ":" + gadget.getMethod().getDesc());
 		
-		if (blacklist.containsKey(gadget.getClazz().getCanonicalName())) {
-			String clazz = gadget.getClazz().getCanonicalName();
+		if (gadget.getMethod() == null) {
+			System.out.println("The method " + gadget.getMethodDesc() + " does not exist in " + gadget.getClazz().getCanonicalName());
+			return;
+		}
+		
+		if (blacklist.containsKey(gadget.getName()) || (gadget.getClazz() != null && blacklist.containsKey(gadget.getClazz().getCanonicalName()))) {
+			String clazz;
+			if (gadget.getClazz() == null) {
+				clazz = gadget.getName();
+			} else {
+				clazz = gadget.getClazz().getCanonicalName();
+			}
 			MethodInfo method = gadget.getMethod();
-			if (blacklist.get(clazz).contains(method.getName() + ":" + method.getDesc())) {
+				if (blacklist.get(clazz).contains(method.getName() + ":" + method.getDesc())) {
 				returnChain(gadget);
 				return; // chain found parent reference to show the chain
 			}
+		}
+		
+		if (gadget.getClazz() == null) {
+			System.out.println("The class " + gadget.getName() + " is not found as it is not serializable ");
+			return;
 		}
 		
 		if (gadget.getBytes() == null) {

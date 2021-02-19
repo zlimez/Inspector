@@ -22,6 +22,9 @@ public class Gadget {
 	private Map<Integer, BasicValue> userControlledArgPos;
 	private int depth;
 	
+	public String classname; // used only when class cannot be found correspond to 2nd constructor
+	public String methodDesc; // used only when method cannot be found correspond to third constructor
+	
 	public Gadget(Class<?> type, MethodInfo m, Gadget parent, byte[] b, Map<Integer, BasicValue> userControlledArgPos, int depth) {
 		this.clazz = type;
 		this.method = m;
@@ -32,17 +35,31 @@ public class Gadget {
 		this.depth = depth;
 	}
 	
+	public Gadget(String classname, MethodInfo m, Gadget parent, int depth) {
+		this.classname = classname;
+		this.method = m;
+		this.parent = parent;
+		this.depth = depth;
+	} 
+	
+	public Gadget(Class<?> type, String methodDesc, Gadget parent, int depth) {
+		this.clazz = type;
+		this.methodDesc = methodDesc;
+		this.parent = parent;
+		this.depth = depth;
+	}
+	
 	public List<MethodInfo> InspectMethod() {
 		ClassReader cr = new ClassReader(byteContent);
 		String owner = cr.getClassName();
 		ClassWriter cw = new ClassWriter(cr, 0);
 		RenderClass rc = new RenderClass(cw, owner, method.getName(), method.getDesc(), userControlledArgPos);
 		cr.accept(rc, 0);
-		rc.getNextInvokedMethods().forEach(e -> {
-			System.out.print(" " + e.getOwner() + ":" + e.getName() + " ");
-			e.getUserControlledArgPos().forEach((k, v) -> System.out.print(k + ","));
-			System.out.println();
-		});
+//		rc.getNextInvokedMethods().forEach(e -> {
+//			System.out.print(" " + e.getOwner() + ":" + e.getName() + " ");
+//			e.getUserControlledArgPos().forEach((k, v) -> System.out.print(k + ","));
+//			System.out.println();
+//		});
 		return rc.getNextInvokedMethods(); // find all possible candidate method calls
 	}
 	
@@ -60,17 +77,29 @@ public class Gadget {
 			subtypes = Enumerate.hierarchy.get(owner);
 		}
 		if (subtypes.isEmpty()) {
-			Class<?> last = Class.forName(owner);
-			Method[] methods = last.getDeclaredMethods();
-			for (Method m : methods) {
-				if (m.getName().equals(methodName) && methodDesc.equals(MethodInfo.convertDescriptor(m))) {
-					Gadget finale = new Gadget(last, method, this, null, null, depth + 1);
-					childrenForThisMethod.add(finale);
-					children.add(finale);
-					return childrenForThisMethod;
+			try {
+				Class<?> last = Class.forName(owner);
+				Method[] methods = last.getDeclaredMethods();
+				for (Method m : methods) {
+					if (m.getName().equals(methodName) && methodDesc.equals(MethodInfo.convertDescriptor(m))) {
+						Gadget finale = new Gadget(last, method, this, null, null, depth + 1);
+						childrenForThisMethod.add(finale);
+						children.add(finale);
+						return childrenForThisMethod;
+					}
 				}
-			}
-		} // cases where the class the method belongs to is not found
+				Gadget noSuchMethod = new Gadget(last, methodName + ":" + methodDesc, this, depth + 1);
+				childrenForThisMethod.add(noSuchMethod); 
+				return childrenForThisMethod;
+			} catch (ClassNotFoundException e) {
+				e.printStackTrace();
+			} 
+			Gadget likelyDeadEnd = new Gadget(owner, method, this, depth + 1);
+			childrenForThisMethod.add(likelyDeadEnd);
+			children.add(likelyDeadEnd);
+			return childrenForThisMethod;
+		} // cases where the class the method belongs to is not found as it is not serializable but could be a blacklisted class:method
+		
 		subtypes.forEach((k, v) -> {
 			Method[] allMethods = k.getDeclaredMethods(); // should include accessor rendering as well to check whether the method can indeed be called
 			for (int i = 0; i < allMethods.length; i++) {
@@ -102,5 +131,13 @@ public class Gadget {
 	
 	public int getDepth() {
 		return depth;
+	}
+	
+	public String getName() {
+		return classname;
+	}
+	
+	public String getMethodDesc() {
+		return methodDesc;
 	}
 }
