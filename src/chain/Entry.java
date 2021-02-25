@@ -28,22 +28,18 @@ public class Entry {
 				if (methodName.equals("readObject") || methodName.equals("readResolve") || methodName.equals("validateObject") || methodName.equals("readObjectNoData") || methodName.equals("readExternal")) {
 					boolean isStatic = Modifier.isStatic(method.getModifiers()) ? true : false;
 					Map<Integer, BasicValue> sim = new Hashtable<Integer, BasicValue>();
-//					int argLength = method.getParameterCount();  // include finalize as magic method?
-//					for (int i = 1; i <= argLength; i++) { 
-//						sim.put(i, UserFieldInterpreter.USER_INFLUENCED); // input stream is controlled by user hence whatever is read from it is too
-//					}
+					int argLength = method.getParameterCount();  // include finalize as magic method?
+					for (int i = 0; i < argLength; i++) { 
+						sim.put(i + 1, UserFieldInterpreter.USER_INFLUENCED); // input stream is controlled by user hence whatever is read from it is too
+					}
 					if (!isStatic) {
 						sim.put(0, UserFieldInterpreter.USER_DERIVED);
 					}
-					MethodInfo mf = new MethodInfo(methodName, MethodInfo.convertDescriptor(method), isStatic);  
+					MethodInfo mf = new MethodInfo(methodName, MethodInfo.convertDescriptor(method), isStatic, argLength);  
 					Gadget possibleEntry = new Gadget(c, mf, null, clazz.getValue(), sim, 1);
 					List<MethodInfo> next = possibleEntry.InspectMethod();
 
 					if (next.size() > 0) {
-//						System.out.println(c.getCanonicalName() + ":" + mf.getName());
-//						for (MethodInfo e : next) {
-//							System.out.println(" " + e.getOwner() + ":" + e.getName());
-//						}
 						info.add(mf);
 					} //magic methods that actually invoke further method
 				}

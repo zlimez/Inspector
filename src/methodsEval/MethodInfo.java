@@ -1,5 +1,8 @@
 package methodsEval;
 
+import java.io.Externalizable;
+import java.io.ObjectInputStream;
+import java.io.ObjectInputValidation;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Iterator;
@@ -17,7 +20,7 @@ public class MethodInfo implements Serializable {
 	private boolean isStatic; // determines do i need to parse the constructor of the next interesting method
 	private boolean isField;
 	private transient Map<Integer, BasicValue> userControlledArgPos;
-//	private int parameterCount;
+	private int parameterCount;
 	
 	public MethodInfo(String owner, String name, boolean isStatic, Map<Integer, BasicValue> userControlledArgPos, String desc, boolean isField) {
 		this.name = name;
@@ -28,11 +31,11 @@ public class MethodInfo implements Serializable {
 		this.isField = isField;
 	}
 	
-	public MethodInfo(String name, String desc, boolean isStatic) { //for entry point only
+	public MethodInfo(String name, String desc, boolean isStatic, int parameterCount) { //for entry point only
 		this.name = name;
 		this.desc = desc;
 		this.isStatic = isStatic;
-//		this.parameterCount = parameterCount;
+		this.parameterCount = parameterCount;
 	}
 	
 	public String getName() {
@@ -58,9 +61,10 @@ public class MethodInfo implements Serializable {
 	public boolean getIsField() {
 		return isField;
 	}
-//	public int getParamCount() {
-//		return parameterCount;
-//	}
+	
+	public int getParamCount() {
+		return parameterCount;
+	}
 	
 	@Override
 	public boolean equals(Object o) {
@@ -151,6 +155,41 @@ public class MethodInfo implements Serializable {
 		}
 		
 		return sb.toString();
+	}
+	
+	public static boolean checkIsInputStream(MethodInfo mf) {
+		String owner = mf.getOwner();
+		String name = mf.getName();
+		if (owner.equals("java/io/ObjectInputStream")) {
+			Class<?> io = ObjectInputStream.class;
+			Method[] methods = io.getDeclaredMethods();
+			for (Method m : methods) {
+				if (m.getName().equals(name)) {
+					return true;
+				}
+			}
+		} else if (owner.equals("java/io/Externalizable")) {
+			if (name.equals("readExternal")) {
+				Class<?> io = Externalizable.class;
+				Method[] methods = io.getDeclaredMethods();
+				for (Method m : methods) {
+					if (m.getName().equals(name)) {
+						return true;
+					}
+				}
+			}
+		} else if (owner.equals("java/io/ObjectInputValidation")) {
+			if (name.equals("validateObject")) {
+				Class<?> io = ObjectInputValidation.class;
+				Method[] methods = io.getDeclaredMethods();
+				for (Method m : methods) {
+					if (m.getName().equals(name)) {
+						return true;
+					}
+				}
+			}
+		} 
+		return false;
 	}
 }
  

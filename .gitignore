@@ -2,3 +2,5 @@
 deprecated/
 # ignore dryrun
 dryrun/
+# ignore log
+*.log

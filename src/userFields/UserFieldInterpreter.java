@@ -241,12 +241,12 @@ public class UserFieldInterpreter extends BasicInterpreter {
 //				} else {
 //					mf = new MethodInfo(method.owner, method.name, isStatic, map, method.desc, false);
 //				} // need to be fixed so the owner corresponds to field name
-				mf = new MethodInfo(method.owner, method.name, isStatic, map, method.desc, false);
+				String owner = method.owner;
+				mf = new MethodInfo(owner, method.name, isStatic, map, method.desc, false);
 				if (!nextInvokedMethod.contains(mf)) {
-//					if (!mf.getName().equals("toString"))
+					if (!MethodInfo.checkIsInputStream(mf)) 
 					nextInvokedMethod.add(mf);
 				}
-//				nextInvokedMethod.add(mf);
 				return USER_DERIVED;
 			}
 		} else if (insn instanceof InvokeDynamicInsnNode) {
