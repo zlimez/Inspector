@@ -1,11 +1,9 @@
 package userFields;
 
-import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.analysis.Analyzer;
 import org.objectweb.asm.tree.analysis.AnalyzerException;
 import org.objectweb.asm.tree.analysis.BasicValue;
-import org.objectweb.asm.tree.analysis.Frame;
 
 import java.util.Map;
 
@@ -35,24 +33,7 @@ public class ConstructorTracer extends MethodVisitor {
 		} catch (AnalyzerException e) {
 			e.printStackTrace();
 		}
-//		AbstractInsnNode[] insns = mn.instructions.toArray();
-//		for (int i = 0; i < insns.length; i++) {
-//			if (i == 10) {
-//				System.out.println(insns[i].getOpcode());
-//			}
-//		}
-//		Frame<BasicValue>[] frames = a.getFrames();
-//		for (int i = 0; i < frames.length; i++) {
-//			if (i == 11) {
-//			System.out.println(frames[i].getStackSize());
-//			}
-//		}
 		UserControlledFields = interpreter.getUserControlledFieldsFromConstructor();
-
-//		interpreter.getUserControlledFieldsFromConstructor().forEach((k, v) -> {
-//			boolean equals = (v == UserFieldInterpreter.USER_INFLUENCED);
-//			System.out.println(k + " " + equals);
-//		});
 		mn.accept(next);
 	}
 	

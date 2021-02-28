@@ -10,9 +10,6 @@ import org.objectweb.asm.tree.MethodNode;
 import org.objectweb.asm.tree.analysis.Analyzer;
 import org.objectweb.asm.tree.analysis.AnalyzerException;
 import org.objectweb.asm.tree.analysis.BasicValue;
-import org.objectweb.asm.tree.analysis.Frame;
-import org.objectweb.asm.tree.AbstractInsnNode;
-import org.objectweb.asm.tree.MethodInsnNode;
 
 import userFields.UserFieldInterpreter;
 
@@ -43,25 +40,6 @@ public class MethodTracer extends MethodVisitor{
 			e.printStackTrace();
 		}
 		nextInvokedMethods = interpreter.getNextInvokedMethods();
-//		Frame<BasicValue>[] frames = a.getFrames();
-//		AbstractInsnNode[] insns = mn.instructions.toArray();
-//		for (int i = 0; i < frames.length; i++) {
-//			if (insns[i] instanceof MethodInsnNode) {
-//				if (((MethodInsnNode) insns[i]).name.equals("doSomething")) {
-//					BasicValue val = frames[i].getStack(frames[i].getStackSize() - 2);
-//					System.out.println(frames[i].getStackSize());
-//					System.out.println(val == UserFieldInterpreter.USER_DERIVED);
-//				}
-//			}
-//		}
-//		List<MethodInfo> methods = interpreter.getNextInvokedMethods();
-//		methods.forEach(e -> {
-//			System.out.println(e.getName());
-//			e.getUserControlledArgPos().forEach((k, v) -> {
-//				System.out.println(k);
-//			});
-//		});
-
 		mn.accept(next);
 	}
 	

@@ -22,6 +22,8 @@ public class Gadget {
 	private Map<Integer, BasicValue> userControlledArgPos;
 	private int depth;
 	
+	private boolean isEntry;
+	private int id; // for reference during neo4j 
 	private List<Gadget> revisedChildren; // for gadgets within a potential or valid gadget where some child path are invalid and should be removed to facilitate iterative analysis from end points
 	private boolean visited = false;
 	
@@ -85,7 +87,7 @@ public class Gadget {
 				Method[] methods = last.getDeclaredMethods();
 				for (Method m : methods) {
 					if (m.getName().equals(methodName) && methodDesc.equals(MethodInfo.convertDescriptor(m))) {
-						Gadget finale = new Gadget(last, method, this, null, null, depth + 1);
+						Gadget finale = new Gadget(last, method, this, null, method.getUserControlledArgPos(), depth + 1);
 						childrenForThisMethod.add(finale);
 						children.add(finale);
 						return childrenForThisMethod;
@@ -152,6 +154,26 @@ public class Gadget {
 		return revisedChildren;
 	}
 	
+	public Map<Integer, BasicValue> getUserContolledArgPos() {
+		return userControlledArgPos;
+	}
+	
+	public int getId() {
+		return id;
+	}
+	
+	public boolean getIsEntry() {
+		return isEntry;
+	}
+	
+	public void setId(int id) {
+		this.id = id;
+	}
+	
+	public void setIsEntry() {
+		isEntry = true;
+	}
+	
 	public void visited(Gadget revisedChild) {
 		if (!visited) {
 			visited = true;
@@ -159,13 +181,6 @@ public class Gadget {
 		revisedChildren = new ArrayList<>();
 		if (revisedChild != null) {
 			revisedChildren.add(revisedChild);
-//			String clazzname;
-//			if (revisedChild.getClazz() == null) {
-//				clazzname = revisedChild.getName();
-//			} else {
-//				clazzname = revisedChild.getClazz().getCanonicalName();
-//			}
-//			System.out.println(clazzname + " added as children");
 		}
 	}
 

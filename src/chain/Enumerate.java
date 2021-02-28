@@ -19,6 +19,7 @@ import hierarchy.BuildOrder;
 import hierarchy.SortClass;
 import methodsEval.MethodInfo;
 import precompute.DbConnector;
+import precompute.NeoVisualize;
 import precompute.StoreHierarchy;
 import userFields.UserFieldInterpreter;
 
@@ -116,11 +117,17 @@ public class Enumerate {
 			}
 			target.initAllEntry();
 			allPotentialGadgets.removeIf(g -> !g.getVisitStatus());
-//			for (Gadget start : allPotentialGadgets) {
-//				if (start.getParent() == null) {
-//					storeGadget(start);
-//	 			}
-//			}
+			System.out.println(allPotentialGadgets.size());
+			try (NeoVisualize visualize = new NeoVisualize("bolt://localhost:7687", "neo4j", "password")) {
+				for (Gadget start : allPotentialGadgets) {
+					if (start.getParent() == null) {
+						start.setIsEntry();
+						storeGadget(start, visualize);
+		 			}
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 		}
 	}
 	
@@ -327,13 +334,17 @@ public class Enumerate {
 	}
 	
 	// method to enumerate all valid paths referencing allPotentialGadgets
-//	public static void storeGadget(Gadget parent) {
-		// store parent
-//		List<Gadget> revisedChildren = parent.getRevisedChildren();
-//		for (Gadget child : revisedChildren) {
-//			storeGadget(child);
-//		}
-//	}
+	public static void storeGadget(Gadget parent, NeoVisualize visualize) {
+		List<Gadget> revisedChildren = parent.getRevisedChildren();
+		if (revisedChildren.isEmpty()) {
+			return;
+		}
+		visualize.genCallGraphFromThisNode(parent);
+
+		for (Gadget child : revisedChildren) {
+			storeGadget(child, visualize);
+		}
+	}
 	
 	private static class InvalidInputException extends Exception {
 		private static final long serialVersionUID = 1L;
