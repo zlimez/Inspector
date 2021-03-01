@@ -22,9 +22,8 @@ public class Gadget {
 	private Map<Integer, BasicValue> userControlledArgPos;
 	private int depth;
 	
-	private boolean isEntry;
 	private int id; // for reference during neo4j 
-	private List<Gadget> revisedChildren; // for gadgets within a potential or valid gadget where some child path are invalid and should be removed to facilitate iterative analysis from end points
+	private List<Gadget> revisedChildren = new ArrayList<Gadget>(); // for gadgets within a potential or valid gadget where some child path are invalid and should be removed to facilitate iterative analysis from end points
 	private boolean visited = false;
 	
 	public String classname; // used only when class cannot be found correspond to 2nd constructor
@@ -162,23 +161,15 @@ public class Gadget {
 		return id;
 	}
 	
-	public boolean getIsEntry() {
-		return isEntry;
-	}
-	
 	public void setId(int id) {
 		this.id = id;
 	}
 	
-	public void setIsEntry() {
-		isEntry = true;
+	public void visited() {
+		visited = true;
 	}
 	
-	public void visited(Gadget revisedChild) {
-		if (!visited) {
-			visited = true;
-		}
-		revisedChildren = new ArrayList<>();
+	public void addRevisedChild(Gadget revisedChild) {
 		if (revisedChild != null) {
 			revisedChildren.add(revisedChild);
 		}

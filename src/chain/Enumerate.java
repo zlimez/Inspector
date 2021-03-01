@@ -37,97 +37,104 @@ public class Enumerate {
 	private static ArrayList<Gadget> allPotentialGadgets = new ArrayList<>();
 	
 	public static void main(String[] args) throws ClassNotFoundException, IOException, SQLException, InvalidInputException {
-		try (Scanner in = new Scanner(System.in)) {
-			System.out.println("Specify the path to the jar or war file of the application you wish to scan");
-			String pathToFile = in.next();
-			System.out.println("Specify the version of java the application will be running in (eg. 11)");
-			int jdkVersion = in.nextInt();
-			System.out.println("Specify the path to the file you wish to store the scan results");
-			String resultFile = in.next();
-			System.out.println("Specify the maximum length of the gadget chain you wish to find");
-			maxDepth = in.nextInt();
-			System.out.println("Specify the search algorithm to employ (BFS/DFS)");
-			String searchType = in.next();
-			if (searchType.equalsIgnoreCase("BFS")) {
-				isDFS = false;
-				queue = new LinkedList<Gadget>();
-			} else if (searchType.equalsIgnoreCase("DFS")) {
-				isDFS = true;
-			} else {
-				throw new InvalidInputException("Invalid search algorithm");
-			}
+		String pathToFile = "/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/commons-collections4-4.0.jar";
+		int jdkVersion = 11;
+		maxDepth = 6;
+		isDFS = true;
+		String resultFile = "/home/pcadmin/chains";
+//		try (Scanner in = new Scanner(System.in)) {
+//			System.out.println("Specify the path to the jar or war file of the application you wish to scan");
+//			String pathToFile = in.next();
+//			System.out.println("Specify the version of java the application will be running in (eg. 11)");
+//			int jdkVersion = in.nextInt();
+//			System.out.println("Specify the path to the file you wish to store the scan results");
+//			String resultFile = in.next();
+//			System.out.println("Specify the maximum length of the gadget chain you wish to find");
+//			maxDepth = in.nextInt();
+//			System.out.println("Specify the search algorithm to employ (BFS/DFS)");
+//			String searchType = in.next();
+//			if (searchType.equalsIgnoreCase("BFS")) {
+//				isDFS = false;
+//				queue = new LinkedList<Gadget>();
+//			} else if (searchType.equalsIgnoreCase("DFS")) {
+//				isDFS = true;
+//			} else {
+//				throw new InvalidInputException("Invalid search algorithm");
+//			}
+//			
+		DbConnector.initBlacklist(jdkVersion); 
+		Enumerate target = new Enumerate(jdkVersion, pathToFile, Blacklist.getList(), resultFile); 
 			
-			DbConnector.initBlacklist(jdkVersion); 
-			Enumerate target = new Enumerate(jdkVersion, pathToFile, Blacklist.getList(), resultFile); 
-			
-			System.out.println("Do you wish to select specific class:methods to start the analysis (Y/N)?");
-			String choice = in.next();
-			if (choice.equalsIgnoreCase("Y")) {
-				scanStart = new Hashtable<>();
-				System.out.println("Specify the path to the file you want to output the list of possible entry points for the analysis");
-				String entries = in.next();
-				PrintWriter writer = new PrintWriter(entries);
-				entryPoints.forEach((k, v) -> {
-					writer.print(k.getCanonicalName() + ": ");
-					for (int i = 1; i < v.size(); i++) {
-						MethodInfo mf = (MethodInfo) v.get(i);
-						writer.print(mf.getName() + mf.getDesc() + ", ");
-					}
-					writer.println();
-				});
-				writer.flush();
-				writer.close();
-				System.out.println("Specify the path to the file containing the class:methods (Each class should be written in their canonical name followed by a :, and its methods separated by a , including both the method name and descriptor eg. readObject(Ljava/io/ObjectInputStream;)V");
-				String file = in.next();
-				Scanner read = new Scanner(new FileInputStream(file));
-				while (read.hasNextLine()) {
-					String line = read.nextLine();
-					System.out.println(line);
-					Scanner scanLine = new Scanner(line);
-					scanLine.useDelimiter(":\\s*|\\,\\s*");
-					String clazz = scanLine.next();
-					System.out.println(clazz);
-					List<String> methods = new ArrayList<>();
-					while (scanLine.hasNext()) {
-						String method = scanLine.next();
-						System.out.println(method);
-						methods.add(method);
-					}
-					scanLine.close();
-					scanStart.put(clazz, methods);
-				}
-				read.close();
-			} else if (choice.equalsIgnoreCase("N")) {
-			} else {
-				throw new InvalidInputException("Invalid input");
+//			System.out.println("Do you wish to select specific class:methods to start the analysis (Y/N)?");
+//			String choice = in.next();
+//			if (choice.equalsIgnoreCase("Y")) {
+//				scanStart = new Hashtable<>();
+//				System.out.println("Specify the path to the file you want to output the list of possible entry points for the analysis");
+//				String entries = in.next();
+//				PrintWriter writer = new PrintWriter(entries);
+//				entryPoints.forEach((k, v) -> {
+//					writer.print(k.getCanonicalName() + ": ");
+//					for (int i = 1; i < v.size(); i++) {
+//						MethodInfo mf = (MethodInfo) v.get(i);
+//						writer.print(mf.getName() + mf.getDesc() + ", ");
+//					}
+//					writer.println();
+//				});
+//				writer.flush();
+//				writer.close();
+//				System.out.println("Specify the path to the file containing the class:methods (Each class should be written in their canonical name followed by a :, and its methods separated by a , including both the method name and descriptor eg. readObject(Ljava/io/ObjectInputStream;)V");
+//				String file = in.next();
+//				Scanner read = new Scanner(new FileInputStream(file));
+//				while (read.hasNextLine()) {
+//					String line = read.nextLine();
+//					System.out.println(line);
+//					Scanner scanLine = new Scanner(line);
+//					scanLine.useDelimiter(":\\s*|\\,\\s*");
+//					String clazz = scanLine.next();
+//					System.out.println(clazz);
+//					List<String> methods = new ArrayList<>();
+//					while (scanLine.hasNext()) {
+//						String method = scanLine.next();
+//						methods.add(method);
+//					}
+//					scanLine.close();
+//					scanStart.put(clazz, methods);
+//				}
+//				read.close();
+//			} else if (choice.equalsIgnoreCase("N")) {
+//			} else {
+//				throw new InvalidInputException("Invalid input");
+//			}
+		scanStart = new Hashtable<>();
+		List<String> methods = new ArrayList<>();
+		methods.add("readObject(Ljava/io/ObjectInputStream;)V");
+		scanStart.put("java.util.PriorityQueue", methods);
+		Map<Class<?>, byte[]> dc = CheckForSerialization.deserializationOccurences(allClasses);
+		if (dc.isEmpty()) {
+			System.out.println("Warning no deserialization process in the application");
+		} else {
+			PrintWriter out = new PrintWriter(target.outputFile);
+			out.print("Location of deserialization: ");
+			dc.forEach((k, v) -> {
+				out.print(k.getCanonicalName() + "; ");
+			});
+			out.println();
+			out.flush();
+			out.close();
+		}
+		target.initAllEntry();
+		allPotentialGadgets.removeIf(g -> !g.getVisitStatus());
+		System.out.println(allPotentialGadgets.size());
+		try (NeoVisualize visualize = new NeoVisualize("bolt://localhost:7687", "neo4j", "password")) {
+			visualize.indexGraph();
+			for (Gadget start : allPotentialGadgets) {
+				if (start.getParent() == null) {
+					visualize.genInitialNode(start);
+					storeGadget(start, visualize);
+	 			}
 			}
-			
-			Map<Class<?>, byte[]> dc = CheckForSerialization.deserializationOccurences(allClasses);
-			if (dc.isEmpty()) {
-				System.out.println("Warning no deserialization process in the application");
-			} else {
-				PrintWriter out = new PrintWriter(target.outputFile);
-				out.print("Location of deserialization: ");
-				dc.forEach((k, v) -> {
-					out.print(k.getCanonicalName() + "; ");
-				});
-				out.println();
-				out.flush();
-				out.close();
-			}
-			target.initAllEntry();
-			allPotentialGadgets.removeIf(g -> !g.getVisitStatus());
-			System.out.println(allPotentialGadgets.size());
-			try (NeoVisualize visualize = new NeoVisualize("bolt://localhost:7687", "neo4j", "password")) {
-				for (Gadget start : allPotentialGadgets) {
-					if (start.getParent() == null) {
-						start.setIsEntry();
-						storeGadget(start, visualize);
-		 			}
-				}
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 	
@@ -326,7 +333,11 @@ public class Enumerate {
 	}
 	
 	public void cleanUpCallTree(Gadget gadget, Gadget revisedChild) { // remove all gadgets that cannot potentially or is a already a part of a gadget chain
-		gadget.visited(revisedChild);
+		gadget.addRevisedChild(revisedChild);
+		if (gadget.getVisitStatus()) {
+			return;
+		}
+		gadget.visited();
 		Gadget parent = gadget.getParent();
 		if (parent == null)
 			return;
