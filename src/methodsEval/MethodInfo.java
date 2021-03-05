@@ -75,7 +75,7 @@ public class MethodInfo implements Serializable {
 				Map.Entry<Integer, BasicValue> arg = (Map.Entry<Integer, BasicValue>) it.next();
 				int k = arg.getKey();
 				if (!userControlledArgPos.containsKey(k)) {
-					return false;
+					return false; // User_Derived and User_Controlled considered same as they yield same evaluation result can be overriden to increase accuracy
 				}
 			}
 			return true;
@@ -87,71 +87,71 @@ public class MethodInfo implements Serializable {
 		Class<?>[] params = method.getParameterTypes();
 		StringBuffer sb = new StringBuffer("(");
 		StringBuffer local = new StringBuffer();
-		String[] arr = new String[] {"^int(\\[\\])*", "^boolean(\\[\\])*", "^long(\\[\\])*", "^short(\\[\\])*", "^float(\\[\\])*", "^double(\\[\\])*", "^char(\\[\\])*","^byte(\\[\\])*"};
-		String brackets = "(\\[\\])";
+		String[] arr = new String[] {"^int$", "^boolean$", "^long$*", "^short$", "^float$", "^double$*", "^char$","^byte$"};
+		String brackets = "(\\[)";
 		Pattern arrCount = Pattern.compile(brackets);
 		
 		for (int i = 0; i < params.length + 1; i++) { // +1 for returntype
 			String type;
-			boolean isPrimitive = false;
 			if (i == params.length) {
 				sb.append(")");
-				type = method.getReturnType().getCanonicalName();
+				type = method.getReturnType().getName();
 				if (type.equals("void")) {
 					sb.append("V");
 					break;
 				}
-				;
 			} else {
-				type = params[i].getCanonicalName();
+				type = params[i].getName();
 			}
 
 			Matcher counter = arrCount.matcher(type);
-			while (counter.find()) {
-				local.append("[");
-			}
-			for (int j = 0; j < 8; j++) {
-				Pattern pattern = Pattern.compile(arr[j]);
-				Matcher matcher = pattern.matcher(type);
-				if (matcher.find()) {
-					switch (j) {
-					case 0:
-						local.append("I");
-						break;
-					case 1:
-						local.append("Z");
-						break;
-					case 2:
-						local.append("J");
-						break;
-					case 3:
-						local.append("S");
-						break;
-					case 4:
-						local.append("F");
-						break;
-					case 5:
-						local.append("D");
-						break;
-					case 6:
-						local.append("C");
-						break;
-					case 7:
-						local.append("B");
+			if (!counter.find()) {
+				boolean isPrimitive = false;
+				for (int j = 0; j < 8; j++) {
+					Pattern pattern = Pattern.compile(arr[j]);
+					Matcher matcher = pattern.matcher(type);
+					if (matcher.find()) {
+						switch (j) {
+						case 0:
+							local.append("I");
+							break;
+						case 1:
+							local.append("Z");
+							break;
+						case 2:
+							local.append("J");
+							break;
+						case 3:
+							local.append("S");
+							break;
+						case 4:
+							local.append("F");
+							break;
+						case 5:
+							local.append("D");
+							break;
+						case 6:
+							local.append("C");
+							break;
+						case 7:
+							local.append("B");
+							break;
+						}
+						isPrimitive = true;
 						break;
 					}
-					isPrimitive = true;
-					break;
 				}
-			}
-			if (!isPrimitive) {
+				if (!isPrimitive) {
+					String classType = type.replaceAll("\\.", "/");
+					local.append("L" + classType + ";");
+				}
+			} else {
 				String classType = type.replaceAll("\\.", "/");
-				String rmBrackets = classType.replaceAll(brackets, "");
-				local.append("L" + rmBrackets + ";");
+				local.append(classType);
 			}
-
+		
 			sb.append(local);
-			local.delete(0, local.capacity());
+			local.delete(0, local.length());
 		}
 		
 		return sb.toString();

@@ -12,7 +12,7 @@ public class BuildOrder {
 		while (it.hasNext()) {
 			Map.Entry<Class<?>, byte[]> e = (Map.Entry<Class<?>, byte[]>) it.next();
 			Class<?> parent = e.getKey();
-			String className = parent.getCanonicalName();
+			String className = parent.getName();
 			Map<Class<?>, byte[]> subtypes = new HashMap<Class<?>, byte[]>();
 			serialTypes.forEach((k, v) -> {
 				if (parent.isAssignableFrom(k)) {
@@ -49,7 +49,7 @@ public class BuildOrder {
 		while (it.hasNext()) {
 			Map.Entry<Class<?>, Map<Class<?>, byte[]>> e = (Map.Entry<Class<?>, Map<Class<?>, byte[]>>) it.next();
 			Class<?> parent = e.getKey();
-			String classname = parent.getCanonicalName();
+			String classname = parent.getName();
 			serialTypes.forEach((k, v) -> {
 				if (parent.isAssignableFrom(k)) {
 					e.getValue().put(k, v);

@@ -4,6 +4,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -23,18 +25,33 @@ import org.reflections.util.ConfigurationBuilder;
 
 public class SortClass {
 	private String pathToFile;
+	private CustomLoader genericLoader;
+	private String serverDir;
+	private String tempDir = "/home/pcadmin/Sample";
 	
-	public SortClass(String path) {
-		this.pathToFile = path;
+	public SortClass(String ... path) {
+		this.pathToFile = path[0];
+		if (path.length > 1) {
+			this.serverDir = path[1];
+			if (path.length > 2) {
+				this.tempDir = path[2];
+			}
+		}
 	}
 	
 	// assumption that only user classes will actively digest client input
 	// for war file
 	public List<Map<Class<?>, byte[]>> getSerialAndAllClasses() throws IOException, ClassNotFoundException {
-		Unpack up = new Unpack();
-		if (pathToFile.endsWith(".war")) {
-			ClassLoader classpaths = up.getLibLoader(Paths.get(pathToFile));
-			List<Map<Class<?>, byte[]>> combined = getSerialLibClasses(classpaths);
+		boolean canDeleteTempDir = true;
+		if (tempDir != null) {
+			Unpack.initialize(tempDir);
+			canDeleteTempDir = false;
+		} else 
+			Unpack.initialize();
+		
+		if (serverDir != null) {
+			genericLoader = Unpack.getLibLoader(Paths.get(pathToFile));
+			List<Map<Class<?>, byte[]>> combined = getSerialLibClasses();
 			Map<Class<?>, byte[]> allSerialTypes = combined.get(0);
 			Map<Class<?>, byte[]> allClasses = combined.get(1); 
 			
@@ -43,15 +60,19 @@ public class SortClass {
 			Pattern pattern = Pattern.compile(regexStr);
 			Class<?> serial = Class.forName("java.io.Serializable");
 			
-			up.getClassesPath().forEach(b -> {
+			Object[] URLAndClass = Unpack.getClassesPath();
+			genericLoader.addURL((URL) URLAndClass[0]);
+			
+			@SuppressWarnings("unchecked")
+			List<byte[]> clazzes = (List<byte[]>) URLAndClass[1];
+			clazzes.forEach(b -> {
 				ClassReader cr = new ClassReader(b);
 				String inputClazz = cr.getClassName();
 				Matcher matcher = pattern.matcher(inputClazz);
 				String outputStr = matcher.replaceAll(replacementStr);
-				ClassLoader loader = new CustomLoader(b);
 				
 				try {
-					Class<?> userClazz = loader.loadClass(outputStr);
+					Class<?> userClazz = Class.forName(outputStr, false, genericLoader);
 					allClasses.put(userClazz, b);
 					if (serial.isAssignableFrom(userClazz)) {
 						allSerialTypes.put(userClazz, b);
@@ -61,30 +82,30 @@ public class SortClass {
 					e.printStackTrace();
 				}
 			});
-			
-			up.deleteDirectory();
+			if (canDeleteTempDir)
+				Unpack.deleteDirectory();
 			combined.add(allSerialTypes);
 			combined.add(allClasses); 
 			return combined;
 		} 
-		ClassLoader loader = up.getJarClassLoader(Paths.get(pathToFile));
-		List<Map<Class<?>, byte[]>> serialAndAllTypes = getJarClasses(loader);
-		up.deleteDirectory();
+		genericLoader = Unpack.getJarClassLoader(Paths.get(pathToFile));
+		List<Map<Class<?>, byte[]>> serialAndAllTypes = getJarClasses();
+		Unpack.deleteDirectory();
 		return serialAndAllTypes;
 	}
 	
 	// for jar 
-	private static List<Map<Class<?>, byte[]>> getJarClasses(ClassLoader loader) throws ClassNotFoundException, FileNotFoundException, IOException {
+	private List<Map<Class<?>, byte[]>> getJarClasses() throws ClassNotFoundException, FileNotFoundException, IOException {
 		List<Map<Class<?>, byte[]>> result = new ArrayList<>();
 		List<Class<?>> temp = new ArrayList<Class<?>>();
 		Map<Class<?>, byte[]> subtypes = new Hashtable<Class<?>, byte[]>();
 		Map<Class<?>, byte[]> all = new Hashtable<Class<?>, byte[]>();
 		ConfigurationBuilder config = new ConfigurationBuilder();
-		Reflections reflections = new Reflections(config.setUrls(ClasspathHelper.forClassLoader(loader)).setScanners(new SubTypesScanner(false)));
+		Reflections reflections = new Reflections(config.setUrls(ClasspathHelper.forClassLoader(genericLoader)).setScanners(new SubTypesScanner(false)));
 		Set<String> allTypes = reflections.getAllTypes();
 		allTypes.forEach(t -> {
 			try {
-				temp.add(Class.forName(t, false, loader));
+				temp.add(Class.forName(t, false, genericLoader));
 			} catch (ClassNotFoundException e) {
 				System.out.println("Please provide all relevant dependencies");
 				e.printStackTrace();
@@ -124,17 +145,19 @@ public class SortClass {
 	}
 	
 	//for war
-	private static List<Map<Class<?>, byte[]>> getSerialLibClasses(ClassLoader loader) throws ClassNotFoundException, FileNotFoundException, IOException {
+	private List<Map<Class<?>, byte[]>> getSerialLibClasses() throws ClassNotFoundException, FileNotFoundException, IOException {
 		List<Class<?>> temp = new ArrayList<Class<?>>();
 		List<Map<Class<?>, byte[]>> result = new ArrayList<>();
 		Map<Class<?>, byte[]> subtypes = new Hashtable<Class<?>, byte[]>();
 		Map<Class<?>, byte[]> all = new Hashtable<Class<?>, byte[]>();
 		ConfigurationBuilder config = new ConfigurationBuilder();
-		Reflections reflections = new Reflections(config.setUrls(ClasspathHelper.forClassLoader(loader)).setScanners(new SubTypesScanner(false)));
+		Reflections reflections = new Reflections(config.setUrls(ClasspathHelper.forClassLoader(genericLoader)).setScanners(new SubTypesScanner(false)));
 		Set<String> allTypes = reflections.getAllTypes();
+		genericLoader = Unpack.genericResourceLoader(genericLoader, serverDir);
+
 		allTypes.forEach(t -> {
 			try {
-				temp.add(Class.forName(t, false, loader));
+				temp.add(Class.forName(t, false, genericLoader));
 			} catch (ClassNotFoundException e) {
 				System.out.println("Please provide all relevant dependencies");
 				e.printStackTrace();
@@ -148,8 +171,8 @@ public class SortClass {
 			Pattern pattern = Pattern.compile(regexStr);
 			Matcher matcher = pattern.matcher(clazzName);
 			String output = matcher.replaceAll(replacementStr);
-			Path libDir = Paths.get("/home/pcadmin/Sample/WEB-INF/lib");
-			Path pathToClass = libDir.resolve(output + ".class");
+			Path libDir = Paths.get(tempDir);
+			Path pathToClass = libDir.resolve("WEB-INF/lib/" + output + ".class");
 			try (
 				FileInputStream fis = new FileInputStream(pathToClass.toFile());
 				ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -163,23 +186,26 @@ public class SortClass {
 				if (serial.isAssignableFrom(type)) {
 					subtypes.put(type, libClazzBytes);
 				}
-				all.put(type, libClazzBytes);
+				all.put(type, libClazzBytes); 
 			}
 		}
 		result.add(subtypes);
 		result.add(all);
 		return result;
 	}
+	
+	public URL[] getUrls() {
+		return genericLoader.getURLs();
+	}
 
-	private class CustomLoader extends ClassLoader{
-		private byte[] clazz;
-
-		protected CustomLoader(byte[] clazzBytes) {
-			this.clazz = clazzBytes;
+	public static class CustomLoader extends URLClassLoader{
+		public CustomLoader(URL[] urls) {
+			super(urls);
 		}
-		
-		protected Class<?> findClass(String name) {
-			return defineClass(name, clazz, 0, clazz.length);
+
+		@Override 
+		public void addURL(URL url) {
+			super.addURL(url);
 		}
 	}
 }

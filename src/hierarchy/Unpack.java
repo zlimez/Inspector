@@ -22,13 +22,19 @@ import java.util.jar.JarInputStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Unpack {	
-	private Path warDir;
-	public Unpack() throws IOException {
-		warDir = Files.createDirectory(Paths.get("/home/pcadmin/Sample"));
+import hierarchy.SortClass.CustomLoader;
+
+public class Unpack {
+	private static Path warDir;
+	
+	public static void initialize(String ... dest) throws IOException {
+		if (dest.length == 1)
+			warDir = Files.createDirectory(Paths.get(dest[0]));
+		else 
+			warDir = Files.createDirectory(Paths.get("/home/pcadmin/Sample"));
 	}
 	// Return classloader for jar file entries in lib directory to feed to reflections
-	public ClassLoader getLibLoader(Path warPath) throws IOException {
+	public static CustomLoader getLibLoader(Path warPath) throws IOException {
         
         // Extract to war to the temp directory
 		decompress(warPath, warDir);
@@ -47,11 +53,28 @@ public class Unpack {
 			}
         });
         
-        ClassLoader warURLs = new URLClassLoader(classPathUrls.toArray(new URL[classPathUrls.size()]));
+        CustomLoader warURLs = new CustomLoader(classPathUrls.toArray(new URL[classPathUrls.size()]));
         return warURLs;
 	}
 	
-	private void decompress(Path file, Path dest) throws IOException {
+	public static CustomLoader genericResourceLoader(URLClassLoader loader, String serverPath) throws IOException {
+		Path server = Paths.get(serverPath);
+		List<URL> urls = new ArrayList<>();
+		for (URL url: loader.getURLs()) {
+			urls.add(url);
+		}
+		Files.list(server).forEach(p -> {
+			try {
+				urls.add(p.toUri().toURL());
+			} catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+            }
+		});
+		CustomLoader genericLoader = new CustomLoader(urls.toArray(new URL[urls.size()]));
+		return genericLoader;
+	}
+	
+	private static void decompress(Path file, Path dest) throws IOException {
 	  try (JarInputStream jarInputStream = new JarInputStream(Files.newInputStream(file))) {
             JarEntry jarEntry;
             while ((jarEntry = jarInputStream.getNextJarEntry()) != null) {
@@ -73,9 +96,11 @@ public class Unpack {
 	}
 	
 	// Return byte array of the user classes
-	public List<byte[]> getClassesPath() throws IOException {
+	public static Object[] getClassesPath() throws IOException {
+		Object[] URLAndClass = new Object[2];
 		List<byte[]> clazzes = new ArrayList<>();
 		Path root = warDir.resolve("WEB-INF/classes");
+		URL userClassDir = root.toUri().toURL();
    		String filter = ".class$";
 		Pattern pattern = Pattern.compile(filter);
         Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
@@ -103,10 +128,12 @@ public class Unpack {
         		}
         	}
         });
-		return clazzes;
+        URLAndClass[0] = userClassDir;
+		URLAndClass[1] = clazzes;
+		return URLAndClass;
 	}
 
-    public ClassLoader getJarClassLoader(Path ... jarPaths) throws IOException {
+    public static CustomLoader getJarClassLoader(Path ... jarPaths) throws IOException {
         final List<URL> classPathUrls = new ArrayList<>(jarPaths.length);
         for (Path jarPath : jarPaths) {
             if (!Files.exists(jarPath) || Files.isDirectory(jarPath)) {
@@ -115,7 +142,7 @@ public class Unpack {
             classPathUrls.add(jarPath.toUri().toURL());
             decompress(jarPath, warDir);
         }
-        URLClassLoader classLoader = new URLClassLoader(classPathUrls.toArray(new URL[classPathUrls.size()]));
+        CustomLoader classLoader = new CustomLoader(classPathUrls.toArray(new URL[classPathUrls.size()]));
         return classLoader;
     }
 
@@ -123,7 +150,7 @@ public class Unpack {
      * Recursively delete the directory root and all its contents
      * @param root Root directory to be deleted
      */
-    public void deleteDirectory() throws IOException {
+    public static void deleteDirectory() throws IOException {
         Files.walkFileTree(warDir, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
@@ -142,7 +169,7 @@ public class Unpack {
     /**
      * Copy inputStream to outputStream. Neither stream is closed by this method.
      */
-    public static void copy(InputStream inputStream, OutputStream outputStream) throws IOException {
+    private static void copy(InputStream inputStream, OutputStream outputStream) throws IOException {
         final byte[] buffer = new byte[4096];
         int n;
         while ((n = inputStream.read(buffer)) > 0) {

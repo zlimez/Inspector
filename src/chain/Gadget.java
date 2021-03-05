@@ -1,8 +1,13 @@
 package chain;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 
@@ -12,14 +17,16 @@ import org.objectweb.asm.tree.analysis.BasicValue;
 
 import methodsEval.MethodInfo;
 import methodsEval.RenderClass;
+import userFields.UserFieldInterpreter;
 
-public class Gadget {
-	private Gadget parent;
-	private Class<?> clazz;
+public class Gadget implements Serializable {
+	private static final long serialVersionUID = 1L;
+	private transient Gadget parent;
+	private transient Class<?> clazz;
 	private MethodInfo method;
 	private List<Gadget> children;
 	private byte[] byteContent;
-	private Map<Integer, BasicValue> userControlledArgPos;
+	private transient Map<Integer, BasicValue> userControlledArgPos;
 	private int depth;
 	
 	private int id; // for reference during neo4j 
@@ -28,6 +35,8 @@ public class Gadget {
 	
 	public String classname; // used only when class cannot be found correspond to 2nd constructor
 	public String methodDesc; // used only when method cannot be found correspond to third constructor
+	
+	private Map<Integer, String> argVals; // to reinitialize userControlledArgPos as BasicValue is not serializable
 	
 	public Gadget(Class<?> type, MethodInfo m, Gadget parent, byte[] b, Map<Integer, BasicValue> userControlledArgPos, int depth) {
 		this.clazz = type;
@@ -70,15 +79,15 @@ public class Gadget {
 	/*
 	 * result of Inspect method should be passed as argument to findChildrenComponents
 	 */
-	public List<Gadget> findChildren(MethodInfo method) throws ClassNotFoundException {
+	public List<Gadget> findChildren(MethodInfo method, Map<String, Map<Class<?>, byte[]>> hierarchy) throws ClassNotFoundException {
 		List<Gadget> childrenForThisMethod = new ArrayList<Gadget>();
 		String owner = method.getOwner(); 
 		owner = owner.replaceAll("/", "\\.");
 		String methodName = method.getName();
 		String methodDesc = method.getDesc();
 		Map<Class<?>, byte[]> subtypes = new HashMap<>();
-		if (Enumerate.hierarchy.containsKey(owner)) {
-			subtypes = Enumerate.hierarchy.get(owner);
+		if (hierarchy.containsKey(owner)) {
+			subtypes = hierarchy.get(owner);
 		}
 		if (subtypes.isEmpty()) {
 			try {
@@ -109,7 +118,8 @@ public class Gadget {
 			for (int i = 0; i < allMethods.length; i++) {
 				if (methodName.equals(allMethods[i].getName()) && methodDesc.equals(MethodInfo.convertDescriptor(allMethods[i]))) {
 					Gadget nextComp = new Gadget(k, method, this, v, method.getUserControlledArgPos(), depth + 1); // later should include classes who inherited the method to show all gadget chain possibilities
-					childrenForThisMethod.add(nextComp);
+					if (!checkIfRepeated(nextComp, this))
+						childrenForThisMethod.add(nextComp);
 				}
 			}
 		});
@@ -117,8 +127,34 @@ public class Gadget {
 		return childrenForThisMethod;
 	}
 	
+	public boolean checkIfRepeated(Gadget gadget, Gadget parent) {
+		if (parent.equals(gadget)) 
+			return true;
+		if (parent.getParent() == null) 
+			return false;
+		Gadget grandparent = parent.getParent();
+		boolean result = checkIfRepeated(gadget, grandparent);
+		return result;
+	}
+	
+	@Override 
+	public boolean equals(Object o) { // classname, methodDesc not considered gadgets that will be compared will possess clazz and method field
+		Gadget another = (Gadget) o;
+		if (this.getClazz().getName().equals(another.getClazz().getName()) && this.getMethod().equals(another.getMethod()) && Arrays.equals(this.getBytes(), another.getBytes())) {
+			return true;
+		}
+		return false;
+	}
+	
 	public Gadget getParent() {
 		return parent;
+	}
+	
+	public void setClazz(ClassLoader loader) throws ClassNotFoundException {
+		ClassReader cr = new ClassReader(byteContent);
+		String inputClazz = cr.getClassName();
+		String outputStr = inputClazz.replaceAll("/", "\\.");
+		clazz = Class.forName(outputStr, false, loader);
 	}
 	
 	public Class<?> getClazz() {
@@ -169,10 +205,34 @@ public class Gadget {
 		visited = true;
 	}
 	
+	public void storeArgVals() {
+		argVals = new Hashtable<>();
+		userControlledArgPos.forEach((k, v) -> {
+			String valRep;
+			if (v == UserFieldInterpreter.USER_DERIVED) {
+				valRep = "Derived";
+			} else {
+				valRep = "Influenced";
+			}
+			argVals.put(k, valRep);
+		});
+	}
+	
 	public void addRevisedChild(Gadget revisedChild) {
 		if (revisedChild != null) {
 			revisedChildren.add(revisedChild);
 		}
 	}
-
+	
+	private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
+		ois.defaultReadObject();
+		userControlledArgPos = new Hashtable<>();
+		argVals.forEach((k, v) -> {
+			if (v.equals("Derived")) {
+				userControlledArgPos.put(k, UserFieldInterpreter.USER_DERIVED);
+			} else {
+				userControlledArgPos.put(k, UserFieldInterpreter.USER_INFLUENCED);
+			}
+		});
+	}
 }

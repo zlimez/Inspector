@@ -3,6 +3,7 @@ package precompute;
 import org.neo4j.driver.AuthTokens;
 import org.neo4j.driver.Driver;
 import org.neo4j.driver.GraphDatabase;
+import org.neo4j.driver.Result;
 import org.neo4j.driver.Session;
 import org.neo4j.driver.Transaction;
 import org.neo4j.driver.TransactionWork;
@@ -10,7 +11,6 @@ import org.neo4j.driver.TransactionWork;
 import chain.Gadget;
 import methodsEval.MethodInfo;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +29,7 @@ public class NeoVisualize implements AutoCloseable {
 	
 	public void indexGraph() {
 		try (Session session = driver.session()) {
-			String query = "CREATE INDEX ID FOR (g:Gadget) ON (g.id)";
+			String query = "CREATE CONSTRAINT UniqueID ON (g:Gadget) ASSERT g.id IS UNIQUE";
 			session.run(query);
 		}
 	}
@@ -55,6 +55,14 @@ public class NeoVisualize implements AutoCloseable {
 		}
 	}
 	
+	public void initializeID() {
+		try (Session session = driver.session()) {
+			String query = "MATCH (n) return count(*) as numOfNodes";
+			Result result = session.run(query);
+			id = result.single().get("numOfNodes").asInt();
+		}
+	}
+	
 	private void createGadgets(Transaction tx, Gadget gadget) {
 		List<Gadget> children = gadget.getRevisedChildren();
 		final int parentId = gadget.getId();
@@ -76,7 +84,7 @@ public class NeoVisualize implements AutoCloseable {
 		Map<String, Object> params = new HashMap<>();
 		gadget.setId(id);
 		params.put("id", id++);
-		String classname = gadget.getClazz().getCanonicalName();;
+		String classname = gadget.getClazz().getName();;
 		params.put("class", classname);
 		MethodInfo method = gadget.getMethod();
 		String methodDesc = method.getName() + ":" + method.getDesc();

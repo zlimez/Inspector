@@ -245,7 +245,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 				mf = new MethodInfo(owner, method.name, isStatic, map, method.desc, false);
 				if (!nextInvokedMethod.contains(mf)) {
 					if (!MethodInfo.checkIsInputStream(mf)) 
-					nextInvokedMethod.add(mf);
+						nextInvokedMethod.add(mf);
 				}
 				return USER_DERIVED;
 			}
