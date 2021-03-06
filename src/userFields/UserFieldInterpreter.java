@@ -17,6 +17,7 @@ import org.objectweb.asm.tree.AbstractInsnNode;
 import org.objectweb.asm.tree.FieldInsnNode;
 import org.objectweb.asm.tree.InvokeDynamicInsnNode;
 import org.objectweb.asm.tree.MethodInsnNode;
+import org.objectweb.asm.tree.MultiANewArrayInsnNode;
 
 public class UserFieldInterpreter extends BasicInterpreter {
 	public final static BasicValue USER_INFLUENCED = new BasicValue(null);
@@ -119,24 +120,51 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	      case L2D:
 	      case F2D:
 	      case CHECKCAST:
-	      case ARRAYLENGTH:
 	      case INSTANCEOF:
-	      case NEWARRAY:
-	      case ANEWARRAY: // for length comparisons should enable element based evaluation
+	    	  if (value == USER_INFLUENCED || value == USER_DERIVED) {
+	    		  return value;
+	    	  }
+	    	  return super.unaryOperation(insn, value);  
+	      case ARRAYLENGTH:
+	    	  if (value instanceof ArrayValue) {
+	    		  ArrayValue array = (ArrayValue) value;
+	    		  return array.length;
+	    	  }
+	    	  
+	    	  if (value instanceof MultiDArray) {
+	    		  MultiDArray multiArr = (MultiDArray) value;
+	    		  return multiArr.indivLength;
+	    	  }
+	    	  
 	    	  if (value == USER_INFLUENCED || value == USER_DERIVED) {
 	    		  return value;
 	    	  }
 	    	  return super.unaryOperation(insn, value);
+	      case NEWARRAY:
+	      case ANEWARRAY:
+	    	  ArrayValue arr = new ArrayValue(null, value);
+	    	  return arr;
 	      case GETFIELD:
 	    	  String fieldName = ((FieldInsnNode) insn).name;
 	    	  if (UserControlledFields.containsKey(fieldName)) {
 	    		  return UserControlledFields.get(fieldName);
 	    	  }
+	    	  
 	    	  return super.unaryOperation(insn, value);
 	      case PUTSTATIC:
 	    	  String StaticFieldName = ((FieldInsnNode) insn).name;
 	    	  if (value == USER_INFLUENCED || value == USER_DERIVED) {
 	    		  UserControlledFields.put(StaticFieldName, value);
+	    	  } else if (value instanceof ArrayValue) {
+	    		  ArrayValue array = (ArrayValue) value;
+	    		  if (array.isTainted()) {
+	    			  UserControlledFields.put(StaticFieldName, value);
+	    		  }
+	    	  } else if (value instanceof MultiDArray) {
+	    		  MultiDArray multiArr = (MultiDArray) value;
+	    		  if (multiArr.isTainted()) {
+	    			  UserControlledFields.put(StaticFieldName, value);
+	    		  }
 	    	  }
 	    	  return null;
 	      default:
@@ -155,12 +183,39 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	      case DALOAD:
 	      case AALOAD:
 	      case LALOAD:
+	    	  if (value1 instanceof ArrayValue) {
+	    		  ArrayValue arr = (ArrayValue) value1;
+		    	  BasicValue contents = arr.contents;
+		    	  if (contents == USER_INFLUENCED && value2 == USER_INFLUENCED) {
+		    		  return USER_INFLUENCED;
+		    	  } else if (contents == USER_DERIVED || value2 == USER_DERIVED || contents == USER_INFLUENCED || value2 == USER_INFLUENCED) { // can be made more specific for taint analysis
+		    		  return USER_DERIVED;
+		    	  } 
+	    	  } else if (value1 instanceof MultiDArray) {
+	    		  MultiDArray multiArr = (MultiDArray) value1;
+	    		  if (multiArr.isLast) {
+	    			  BasicValue contents = multiArr.content;
+			    	  if (contents == USER_INFLUENCED && value2 == USER_INFLUENCED) {
+			    		  return USER_INFLUENCED;
+			    	  } else if (contents == USER_DERIVED || value2 == USER_DERIVED || contents == USER_INFLUENCED || value2 == USER_INFLUENCED) { // can be made more specific for taint analysis
+			    		  return USER_DERIVED;
+			    	  } 
+	    		  } else {
+	    			  return multiArr.nested;
+	    		  }	  
+	    	  } else {
+	    		  if (value1 == USER_INFLUENCED && value2 == USER_INFLUENCED) {
+		    		  return USER_INFLUENCED;
+		    	  } else if (value1 == USER_DERIVED || value2 == USER_DERIVED || value1 == USER_INFLUENCED || value2 == USER_INFLUENCED) { // can be made more specific for taint analysis
+		    		  return USER_DERIVED;
+		    	  }
+	    	  }
+	    	  
+	    	  return super.binaryOperation(insn, value1, value2);
 	      case IMUL:
 	      case IDIV:
 	      case IREM:
 	      case FREM:
-	      case LMUL:
-	      case LDIV:
 	      case LREM:
 	      case DREM:
 	      case IAND:
@@ -175,7 +230,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	      case LUSHR:
 	    	  if (value1 == USER_INFLUENCED && value2 == USER_INFLUENCED) {
 	    		  return USER_INFLUENCED;
-	    	  } else if (value1 == USER_DERIVED || value2 == USER_DERIVED || value1 == USER_INFLUENCED || value2 == USER_DERIVED) { // can be made more specific for taint analysis
+	    	  } else if (value1 == USER_DERIVED || value2 == USER_DERIVED || value1 == USER_INFLUENCED || value2 == USER_INFLUENCED) { // can be made more specific for taint analysis
 	    		  return USER_DERIVED;
 	    	  }
 	    	  return super.binaryOperation(insn, value1, value2);
@@ -191,6 +246,8 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	      case DSUB:
 	      case DMUL:
 	      case DDIV:
+	      case LMUL:
+	      case LDIV:
 	      case IXOR:
 	      case LXOR:
 	      case LCMP:
@@ -208,6 +265,16 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	    	  String fieldName = ((FieldInsnNode) insn).name;
 	    	  if (value2 == USER_INFLUENCED || value2 == USER_DERIVED) {
 	    		  UserControlledFields.put(fieldName, value2);
+	    	  } else if (value2 instanceof ArrayValue) {
+	    		  ArrayValue arr = (ArrayValue) value2;
+	    		  if (arr.isTainted()) {
+	    			  UserControlledFields.put(fieldName, value2);
+	    		  }
+	    	  } else if (value2 instanceof MultiDArray) {
+	    		  MultiDArray multiArr = (MultiDArray) value2;
+	    		  if (multiArr.isTainted()) {
+	    			  UserControlledFields.put(fieldName, value2);
+	    		  }
 	    	  }
 	    	  return null;
 	      default: 
@@ -215,6 +282,18 @@ public class UserFieldInterpreter extends BasicInterpreter {
 		}
 	}
 
+	@Override
+	  public BasicValue ternaryOperation(final AbstractInsnNode insn, final BasicValue value1, final BasicValue value2, final BasicValue value3) throws AnalyzerException {
+		if (value1 instanceof ArrayValue) {
+			ArrayValue arr = (ArrayValue) value1;
+			arr.setContents(value3);
+		} else if (value1 instanceof MultiDArray) {
+			MultiDArray multiArr = (MultiDArray) value1;
+			MultiDArray.setEntireNest(multiArr, 2, value3);
+		}
+	    return null;
+	  }
+	
 	@Override
 	 public BasicValue naryOperation(final AbstractInsnNode insn, final List<? extends BasicValue> values) throws AnalyzerException {
 		if (insn instanceof MethodInsnNode) {
@@ -226,7 +305,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 			int i = 0;
 			while (i < values.size()) {
 				BasicValue value = values.get(i);
-				if (value == USER_INFLUENCED || value == USER_DERIVED) {					
+				if (value == USER_INFLUENCED || value == USER_DERIVED || (value instanceof ArrayValue && ((ArrayValue) value).isTainted()) || (value instanceof MultiDArray && ((MultiDArray) value).isTainted())) {					
 					map.put(i, value);
 				}
 				i++;
@@ -255,7 +334,17 @@ public class UserFieldInterpreter extends BasicInterpreter {
 					return USER_DERIVED; // needs to be improved rendering of the actual method owner
 				}
 			}
-		} 	// tackle multi-d arrays later
+		} else if (insn instanceof MultiANewArrayInsnNode) {
+			MultiDArray multiArr = new MultiDArray(null, values.size(), null);
+			MultiDArray currentD = multiArr;
+			for (int i = 0; i < values.size(); i++) {
+				BasicValue value = values.get(i);
+				currentD.indivLength = value;
+				currentD = currentD.nested;
+				MultiDArray.setEntireNest(multiArr, 1, value);
+			}
+			return multiArr;
+		}
 		return super.naryOperation(insn, values);
 	}
 	
@@ -268,4 +357,112 @@ public class UserFieldInterpreter extends BasicInterpreter {
 		}
 		return super.merge(value1, value2);
 	}
+	
+	public static class ArrayValue extends BasicValue {
+		private BasicValue length;
+		private BasicValue contents;
+		
+		public ArrayValue(final Type type, BasicValue length) {
+			super(type);
+			this.length = length;
+		}
+		
+		public void setContents(BasicValue val) {
+			if (contents == USER_DERIVED) {
+			} else if (contents == USER_INFLUENCED) {
+				if (val != USER_INFLUENCED) {
+					contents = USER_DERIVED;
+				}
+			} else {
+				if (contents != null && val == USER_INFLUENCED) {
+					contents = USER_DERIVED;
+				} else {
+					contents = val;
+				}
+			}
+		}
+		
+		public boolean isTainted() {
+			if (length == USER_DERIVED || length == USER_INFLUENCED || contents == USER_DERIVED || contents == USER_INFLUENCED) 
+				return true;
+			return false;
+		}
+	}
+	
+	public static class MultiDArray extends BasicValue {
+		private MultiDArray nested;
+		private MultiDArray parent;
+		private int dim;
+		private boolean isLast = false;
+		private BasicValue content;
+		private BasicValue length;
+		private BasicValue indivLength;
+		
+		public MultiDArray(final Type type, int dim, MultiDArray parent) {
+			super(type);
+			this.parent = parent;
+			this.dim = dim; //inversed
+			if (dim > 1) {
+				nested = new MultiDArray(null, dim - 1, this);
+				if (nested.dim == 1) 
+					nested.isLast = true;
+			}
+		}
+		
+		private void setAllLengths(BasicValue val) {
+			if (length == USER_DERIVED) {
+			} else if (length == USER_INFLUENCED) {
+				if (val != USER_INFLUENCED) {
+					length = USER_DERIVED;
+				}
+			} else {
+				if (length != null && val == USER_INFLUENCED) {
+					length = USER_DERIVED;
+				} else {
+					length = val;
+				}
+			}
+		}
+		
+		public static void setEntireNest(MultiDArray multiArr, int operation, BasicValue val) {
+			List<MultiDArray> links = new ArrayList<>();
+			links.add(multiArr);
+			MultiDArray currentD = multiArr;
+			while (currentD.parent != null) {
+				currentD = currentD.parent;
+				links.add(currentD);
+			}
+			currentD = multiArr;
+			while (currentD.nested != null) {
+				currentD = currentD.nested;
+				links.add(currentD);
+			}
+			if (operation == 1) {
+				links.forEach(e -> e.setAllLengths(val));
+			} else if (operation == 2) 
+				links.forEach(e -> e.setAllContents(val));
+		}
+		
+		private void setAllContents(BasicValue val) {
+			if (content == USER_DERIVED) {
+			} else if (content == USER_INFLUENCED) {
+				if (val != USER_INFLUENCED) {
+					content = USER_DERIVED;
+				}
+			} else {
+				if (content != null && content == USER_INFLUENCED) {
+					content = USER_DERIVED;
+				} else {
+					content = val;
+				}
+			}
+		}
+		
+		public boolean isTainted() {
+			if (length == USER_DERIVED || length == USER_INFLUENCED || content == USER_DERIVED || content == USER_INFLUENCED)
+				return true;
+			return false;
+		}
+	}
 }
+ 
