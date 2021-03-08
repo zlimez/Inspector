@@ -46,6 +46,7 @@ public class Enumerate implements Serializable {
 	private transient Map<Class<?>, byte[]> allClasses;
 	private transient Map<String, Map<Class<?>, byte[]>> hierarchy; // complete hierarchy
 	private transient Map<Class<?>, List<Object>> entryPoints;
+	private Map<String, Map<String, String>> magicMethods;
 	private Map<String, List<String>> blacklist; // List of interesting classes with their respective interesting methods
 	private transient String outputFile;
 	private int maxDepth;
@@ -165,17 +166,18 @@ public class Enumerate implements Serializable {
 				}
 				target.initAllEntry();
 				target.allPotentialGadgets.removeIf(g -> !g.getVisitStatus());
-				try (NeoVisualize visualize = new NeoVisualize("bolt://localhost:7687", "neo4j", "password")) {
-					visualize.indexGraph();
-					for (Gadget start : target.allPotentialGadgets) {
-						if (start.getParent() == null) {
-							visualize.genInitialNode(start);
-							storeGadget(start, visualize);
-			 			}
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+				System.out.println(target.allPotentialGadgets.size());
+//				try (NeoVisualize visualize = new NeoVisualize("bolt://localhost:7687", "neo4j", "password")) {
+//					visualize.indexGraph();
+//					for (Gadget start : target.allPotentialGadgets) {
+//						if (start.getParent() == null) {
+//							visualize.genInitialNode(start);
+//							storeGadget(start, visualize);
+//			 			}
+//					}
+//				} catch (Exception e) {
+//					e.printStackTrace();
+//				}
 				
 			} else if (isNew.equalsIgnoreCase("continue")) {
 				System.out.println("Specify the path to the file where the results of previous analysis is stored");
@@ -273,8 +275,20 @@ public class Enumerate implements Serializable {
 			});
 			inithierarchy.put(classname, subset);
 		});
+		
 		entryPoints = Entry.EntryPoint(serialClazzes);
 		entryPoints.putAll(env.getEntryPoints());
+		magicMethods = new HashMap<>();
+		entryPoints.forEach((c, l) -> {
+			String classname = c.getName();
+			Map<String, String> methodID = new HashMap<>();
+			for (int i = 1; i < l.size(); i++) {
+				MethodInfo mf = (MethodInfo) l.get(i);
+				methodID.put(mf.getName(), mf.getDesc());
+			}
+			magicMethods.put(classname, methodID);
+		});
+		
 		this.blacklist = blacklist;
 		endPoints = new ArrayList<>();
 		allPotentialGadgets = new ArrayList<>();
@@ -410,7 +424,7 @@ public class Enumerate implements Serializable {
 				gadget.storeArgVals();
 				endPoints.add(gadget);
 			} else {
-				List<MethodInfo> next = gadget.InspectMethod();
+				List<MethodInfo> next = gadget.InspectMethod(magicMethods);
 				
 				if (next.size() == 0) {
 					System.out.println("No next method found");
@@ -468,7 +482,7 @@ public class Enumerate implements Serializable {
 			return; // prevent excessive recursion
 		}
 		
-		List<MethodInfo> next = gadget.InspectMethod();
+		List<MethodInfo> next = gadget.InspectMethod(magicMethods);
 		
 		if (next.size() == 0) {
 			System.out.println("No next method found");
@@ -552,7 +566,7 @@ public class Enumerate implements Serializable {
 		});
 	}
 	
-	private static class InvalidInputException extends Exception {
+	public static class InvalidInputException extends Exception {
 		private static final long serialVersionUID = 1L;
 
 		public InvalidInputException(String message) {

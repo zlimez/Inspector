@@ -28,7 +28,7 @@ public class Entry {
 				if (methodName.equals("readObject") || methodName.equals("readResolve") || methodName.equals("validateObject") || methodName.equals("readObjectNoData") || methodName.equals("readExternal")) {
 					boolean isStatic = Modifier.isStatic(method.getModifiers()) ? true : false;
 					Map<Integer, BasicValue> sim = new Hashtable<Integer, BasicValue>();
-					int argLength = method.getParameterCount();  // include finalize as magic method?
+					int argLength = method.getParameterCount();  
 					for (int i = 0; i < argLength; i++) { 
 						sim.put(i + 1, UserFieldInterpreter.USER_INFLUENCED); // input stream is controlled by user hence whatever is read from it is too
 					}
@@ -37,7 +37,7 @@ public class Entry {
 					}
 					MethodInfo mf = new MethodInfo(methodName, MethodInfo.convertDescriptor(method), isStatic, argLength);  
 					Gadget possibleEntry = new Gadget(c, mf, null, clazz.getValue(), sim, 1);
-					List<MethodInfo> next = possibleEntry.InspectMethod();
+					List<MethodInfo> next = possibleEntry.InspectMethod(new HashMap<>());
 
 					if (next.size() > 0) {
 						info.add(mf);

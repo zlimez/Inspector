@@ -19,13 +19,17 @@ public class MethodTracer extends MethodVisitor{
 	Map<Integer, BasicValue> userControlledArgPos = new HashMap<>();
 	Map<String, BasicValue> UserControlledFields = new HashMap<>();
 	List<MethodInfo> nextInvokedMethods;
+	boolean isMagicMethod = false;
 	
-	public MethodTracer(String owner, int access, String name, String desc, MethodVisitor mv, Map<Integer, BasicValue> userControlledArgPos, Map<String, BasicValue> UserControlledFields) {
+	public MethodTracer(String owner, int access, String name, String desc, MethodVisitor mv, Map<Integer, BasicValue> userControlledArgPos, Map<String, BasicValue> UserControlledFields, boolean ... isMagicMethod) {
 		super(Opcodes.ASM9, new MethodNode(access, name, desc, null, null));
 		this.owner = owner;
 		this.next = mv;
 		this.userControlledArgPos = userControlledArgPos;
 		this.UserControlledFields = UserControlledFields;
+		if (isMagicMethod.length > 0) {
+			this.isMagicMethod = isMagicMethod[0];
+		}
 	}
 	
 	@Override
@@ -40,10 +44,17 @@ public class MethodTracer extends MethodVisitor{
 			e.printStackTrace();
 		}
 		nextInvokedMethods = interpreter.getNextInvokedMethods();
+		if (isMagicMethod) {
+			UserControlledFields = interpreter.getUserControlledFields();
+		}
 		mn.accept(next);
 	}
 	
 	public List<MethodInfo> getNextInvokedMethods() {
 		return nextInvokedMethods;
+	}
+	
+	public Map<String, BasicValue> getUserControlledFields() { // called only for magic method to get the full list of userControlledFields
+		return UserControlledFields;
 	}
 }

@@ -2,7 +2,6 @@ package methodsEval;
 
 import java.io.Externalizable;
 import java.io.ObjectInputStream;
-import java.io.ObjectInputValidation;
 import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.Iterator;
@@ -18,17 +17,15 @@ public class MethodInfo implements Serializable {
 	private String name;
 	private String desc;
 	private boolean isStatic; // determines do i need to parse the constructor of the next interesting method
-	private boolean isField;
 	private transient Map<Integer, BasicValue> userControlledArgPos;
 	private int parameterCount;
 	
-	public MethodInfo(String owner, String name, boolean isStatic, Map<Integer, BasicValue> userControlledArgPos, String desc, boolean isField) {
+	public MethodInfo(String owner, String name, boolean isStatic, Map<Integer, BasicValue> userControlledArgPos, String desc) {
 		this.name = name;
 		this.owner = owner;
 		this.isStatic = isStatic;
 		this.userControlledArgPos = userControlledArgPos;
 		this.desc = desc;
-		this.isField = isField;
 	}
 	
 	public MethodInfo(String name, String desc, boolean isStatic, int parameterCount) { //for entry point only
@@ -58,10 +55,6 @@ public class MethodInfo implements Serializable {
 		return desc;
 	}
 	
-	public boolean getIsField() {
-		return isField;
-	}
-	
 	public int getParamCount() {
 		return parameterCount;
 	}
@@ -69,7 +62,7 @@ public class MethodInfo implements Serializable {
 	@Override
 	public boolean equals(Object o) {
 		MethodInfo method = (MethodInfo) o;
-		if (method.getOwner().equals(owner) && method.getName().equals(name) && method.getDesc().equals(desc) && method.getIsField() == isField && method.isStatic == isStatic && method.getUserControlledArgPos().size() == userControlledArgPos.size()) {
+		if (method.getOwner().equals(owner) && method.getName().equals(name) && method.getDesc().equals(desc) && method.isStatic == isStatic && method.getUserControlledArgPos().size() == userControlledArgPos.size()) {
 			Iterator<Map.Entry<Integer, BasicValue>> it = method.getUserControlledArgPos().entrySet().iterator();
 			while (it.hasNext()) {
 				Map.Entry<Integer, BasicValue> arg = (Map.Entry<Integer, BasicValue>) it.next();
@@ -81,6 +74,25 @@ public class MethodInfo implements Serializable {
 			return true;
 		}
 		return false;
+	}
+	
+	public static int countArgs(String desc) {
+		String signature = desc.replaceAll("\\)\\S+", "");
+		int numOfArgs = 0;
+		String prim = "[ZCBSIFJD]";
+		String nonPrim = "L(\\w+/)*[\\w\\$]+;";
+		Pattern pattern = Pattern.compile(nonPrim);
+		Pattern primPattern = Pattern.compile(prim);
+		Matcher matcher = pattern.matcher(signature);
+		while (matcher.find()) {
+			numOfArgs++;
+		}
+		String modified = signature.replaceAll(nonPrim, "");
+		Matcher m = primPattern.matcher(modified);
+		while (m.find()) {
+			numOfArgs++;
+		}
+		return numOfArgs;
 	}
 	
 	public static String convertDescriptor(Method method) {
@@ -169,24 +181,16 @@ public class MethodInfo implements Serializable {
 				}
 			}
 		} else if (owner.equals("java/io/Externalizable")) {
-			if (name.equals("readExternal")) {
-				Class<?> io = Externalizable.class;
-				Method[] methods = io.getDeclaredMethods();
-				for (Method m : methods) {
-					if (m.getName().equals(name)) {
-						return true;
-					}
+			Class<?> io = Externalizable.class;
+			Method[] methods = io.getDeclaredMethods();
+			for (Method m : methods) {
+				if (m.getName().equals(name)) {
+					return true;
 				}
-			}
+				}
 		} else if (owner.equals("java/io/ObjectInputValidation")) {
 			if (name.equals("validateObject")) {
-				Class<?> io = ObjectInputValidation.class;
-				Method[] methods = io.getDeclaredMethods();
-				for (Method m : methods) {
-					if (m.getName().equals(name)) {
-						return true;
-					}
-				}
+				return true;
 			}
 		} 
 		return false;

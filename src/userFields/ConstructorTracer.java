@@ -33,7 +33,7 @@ public class ConstructorTracer extends MethodVisitor {
 		} catch (AnalyzerException e) {
 			e.printStackTrace();
 		}
-		UserControlledFields = interpreter.getUserControlledFieldsFromConstructor();
+		UserControlledFields = interpreter.getUserControlledFields();
 		mn.accept(next);
 	}
 	

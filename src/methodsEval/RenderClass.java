@@ -5,8 +5,6 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
@@ -16,6 +14,7 @@ import org.objectweb.asm.tree.analysis.BasicValue;
 import org.objectweb.asm.FieldVisitor;
 import userFields.ConstructorTracer;
 
+// classes without readObject magic method
 public class RenderClass extends ClassVisitor {
 	String owner;
 	String methodName;
@@ -34,7 +33,7 @@ public class RenderClass extends ClassVisitor {
 		this.userControlledArgPos = userControlledArgPos;
 	}
 	
-	@Override //check transient fields remove from usercontrolled list
+	@Override
 	public FieldVisitor visitField(int acc, String name, String desc, String signature, Object value) {
 		if (acc >= Opcodes.ACC_TRANSIENT && acc <= 160) {
 			transientFields.add(name);
@@ -50,20 +49,7 @@ public class RenderClass extends ClassVisitor {
 			if (ct != null) {
 				userControlledFields.putAll(ct.getUserControlledFields()); // in case there are multiple constructors
 			}
-			int numOfArgs = 0;
-			String prim = "[ZCBSIFJD]";
-			String nonPrim = "L(\\w+/)*[\\w\\$]+;";
-			Pattern pattern = Pattern.compile(nonPrim);
-			Pattern primPattern = Pattern.compile(prim);
-			Matcher matcher = pattern.matcher(desc);
-			while (matcher.find()) {
-				numOfArgs++;
-			}
-			String modified = desc.replaceAll(nonPrim, "");
-			Matcher m = primPattern.matcher(modified);
-			while (m.find()) {
-				numOfArgs++;
-			}
+			int numOfArgs = MethodInfo.countArgs(desc);
 
 			mv = new ConstructorTracer(owner, acc, name, desc, mv, numOfArgs);
 			ct = (ConstructorTracer) mv;
@@ -71,13 +57,13 @@ public class RenderClass extends ClassVisitor {
 			if (ct != null) {
 				userControlledFields.putAll(ct.getUserControlledFields());
 			} // last constructor before specified method is inspected
-//			Iterator<Map.Entry<String, BasicValue>> it = userControlledFields.entrySet().iterator();
-//			while (it.hasNext()) {
-//				Map.Entry<String, BasicValue> field = (Map.Entry<String, BasicValue>) it.next();
-//				if (transientFields.contains(field.getKey())) {
-//					it.remove();
-//				}
-//			} // USER_INFLUENCED should take precedence over USER_DERIVED
+			Iterator<Map.Entry<String, BasicValue>> it = userControlledFields.entrySet().iterator();
+			while (it.hasNext()) {
+				Map.Entry<String, BasicValue> field = (Map.Entry<String, BasicValue>) it.next();
+				if (transientFields.contains(field.getKey())) {
+					it.remove();
+				}
+			} // USER_INFLUENCED should take precedence over USER_DERIVED
 			mv = new MethodTracer(owner, acc, name, desc, mv, userControlledArgPos, userControlledFields);
 			mt = (MethodTracer) mv;
 		} // assume constructor comes before any methods

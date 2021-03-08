@@ -3,6 +3,8 @@ package userFields;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -37,15 +39,25 @@ public class UserFieldInterpreter extends BasicInterpreter {
 		this.numOfArgs = numOfArgs;
 		this.userControlledArgPos = userControlledArgPos;
 	}
-	/* definition to evaluate USER_INFLUENCED | USERCONTROLLED
+	/* 
+	 * definition to evaluate USER_INFLUENCED | USERCONTROLLED
 	 * let all possible expected results from an expression (bytecode instruction) be set R
 	 * if restricting user's freedom to control the input into an expression reduces the number of outcomes to a subset of R, S
 	 * I conclude the outcome to be user derived if not where the set of outcomes remains the same to be USER_INFLUENCED
 	 */
-	// arrays need special treatment doesn't work well for array operations now
+
 	// assumptions made for method calls
 	
-	public Map<String, BasicValue> getUserControlledFieldsFromConstructor() {
+	public Map<String, BasicValue> getUserControlledFields() {
+		Iterator<Map.Entry<String, BasicValue>> it = UserControlledFields.entrySet().iterator();
+		while (it.hasNext()) {
+			Map.Entry<String, BasicValue> field = (Map.Entry<String, BasicValue>) it.next();
+			BasicValue value = field.getValue();
+			if (value == USER_INFLUENCED || value == USER_DERIVED || (value instanceof ArrayValue && ((ArrayValue) value).isTainted()) || (value instanceof MultiDArray && ((MultiDArray) value).isTainted()) || (value instanceof ReferenceValue && ((ReferenceValue) value).isTainted())) {			
+			} else {
+				it.remove();
+			}
+		} 
 		return UserControlledFields;
 	}
 	
@@ -62,7 +74,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 		return BasicValue.UNINITIALIZED_VALUE;
 	}
 	
-	@Override // for constructors
+	@Override 
 	public BasicValue newValue(final Type type) {
 		if (isConstructor) {
 			if (counter == 0) {
@@ -89,6 +101,10 @@ public class UserFieldInterpreter extends BasicInterpreter {
 				String fieldName = ((FieldInsnNode) insn).name;
 		    	if (UserControlledFields.containsKey(fieldName)) {
 		    		  return UserControlledFields.get(fieldName);
+		    	} else if (Type.getType(((FieldInsnNode) insn).desc).getSort() == Type.OBJECT) { // retro add the field to potentially user controlled list
+		    		  ReferenceValue ref = new ReferenceValue(null);
+		    		  UserControlledFields.put(fieldName, ref);
+		    		  return ref;
 		    	}
 		    	return super.newOperation(insn);
 			default:
@@ -119,9 +135,12 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	      case I2D:
 	      case L2D:
 	      case F2D:
-	      case CHECKCAST:
-	      case INSTANCEOF:
 	    	  if (value == USER_INFLUENCED || value == USER_DERIVED) {
+	    		  return value;
+	    	  }
+	    	  return super.unaryOperation(insn, value); 
+	      case CHECKCAST:
+	    	  if (value == USER_INFLUENCED || value == USER_DERIVED || (value instanceof ReferenceValue && ((ReferenceValue) value).isTainted())) {
 	    		  return value;
 	    	  }
 	    	  return super.unaryOperation(insn, value);  
@@ -148,6 +167,10 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	    	  String fieldName = ((FieldInsnNode) insn).name;
 	    	  if (UserControlledFields.containsKey(fieldName)) {
 	    		  return UserControlledFields.get(fieldName);
+	    	  } else if (Type.getType(((FieldInsnNode) insn).desc).getSort() == Type.OBJECT) { // retro add the field to potentially user controlled list
+	    		  ReferenceValue ref = new ReferenceValue(null);
+	    		  UserControlledFields.put(fieldName, ref);
+	    		  return ref;
 	    	  }
 	    	  
 	    	  return super.unaryOperation(insn, value);
@@ -155,16 +178,8 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	    	  String StaticFieldName = ((FieldInsnNode) insn).name;
 	    	  if (value == USER_INFLUENCED || value == USER_DERIVED) {
 	    		  UserControlledFields.put(StaticFieldName, value);
-	    	  } else if (value instanceof ArrayValue) {
-	    		  ArrayValue array = (ArrayValue) value;
-	    		  if (array.isTainted()) {
-	    			  UserControlledFields.put(StaticFieldName, value);
-	    		  }
-	    	  } else if (value instanceof MultiDArray) {
-	    		  MultiDArray multiArr = (MultiDArray) value;
-	    		  if (multiArr.isTainted()) {
-	    			  UserControlledFields.put(StaticFieldName, value);
-	    		  }
+	    	  } else if (value instanceof ArrayValue || value instanceof MultiDArray || value instanceof ReferenceValue) {
+    			  UserControlledFields.put(StaticFieldName, value);
 	    	  }
 	    	  return null;
 	      default:
@@ -188,16 +203,16 @@ public class UserFieldInterpreter extends BasicInterpreter {
 		    	  BasicValue contents = arr.contents;
 		    	  if (contents == USER_INFLUENCED && value2 == USER_INFLUENCED) {
 		    		  return USER_INFLUENCED;
-		    	  } else if (contents == USER_DERIVED || value2 == USER_DERIVED || contents == USER_INFLUENCED || value2 == USER_INFLUENCED) { // can be made more specific for taint analysis
+		    	  } else if (contents == USER_DERIVED || value2 == USER_DERIVED || contents == USER_INFLUENCED || value2 == USER_INFLUENCED) { 
 		    		  return USER_DERIVED;
 		    	  } 
 	    	  } else if (value1 instanceof MultiDArray) {
 	    		  MultiDArray multiArr = (MultiDArray) value1;
-	    		  if (multiArr.isLast) {
+	    		  if (multiArr.dim == 1) {
 	    			  BasicValue contents = multiArr.content;
 			    	  if (contents == USER_INFLUENCED && value2 == USER_INFLUENCED) {
 			    		  return USER_INFLUENCED;
-			    	  } else if (contents == USER_DERIVED || value2 == USER_DERIVED || contents == USER_INFLUENCED || value2 == USER_INFLUENCED) { // can be made more specific for taint analysis
+			    	  } else if (contents == USER_DERIVED || value2 == USER_DERIVED || contents == USER_INFLUENCED || value2 == USER_INFLUENCED) { 
 			    		  return USER_DERIVED;
 			    	  } 
 	    		  } else {
@@ -206,7 +221,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	    	  } else {
 	    		  if (value1 == USER_INFLUENCED && value2 == USER_INFLUENCED) {
 		    		  return USER_INFLUENCED;
-		    	  } else if (value1 == USER_DERIVED || value2 == USER_DERIVED || value1 == USER_INFLUENCED || value2 == USER_INFLUENCED) { // can be made more specific for taint analysis
+		    	  } else if (value1 == USER_DERIVED || value2 == USER_DERIVED || value1 == USER_INFLUENCED || value2 == USER_INFLUENCED) { 
 		    		  return USER_DERIVED;
 		    	  }
 	    	  }
@@ -265,17 +280,10 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	    	  String fieldName = ((FieldInsnNode) insn).name;
 	    	  if (value2 == USER_INFLUENCED || value2 == USER_DERIVED) {
 	    		  UserControlledFields.put(fieldName, value2);
-	    	  } else if (value2 instanceof ArrayValue) {
-	    		  ArrayValue arr = (ArrayValue) value2;
-	    		  if (arr.isTainted()) {
-	    			  UserControlledFields.put(fieldName, value2);
-	    		  }
-	    	  } else if (value2 instanceof MultiDArray) {
-	    		  MultiDArray multiArr = (MultiDArray) value2;
-	    		  if (multiArr.isTainted()) {
-	    			  UserControlledFields.put(fieldName, value2);
-	    		  }
-	    	  }
+	    	  } else if (value2 instanceof ArrayValue || value2 instanceof MultiDArray || value2 instanceof ReferenceValue) {
+	    		  UserControlledFields.put(fieldName, value2);
+	    	  } 
+	    	  
 	    	  return null;
 	      default: 
 	    	  return super.binaryOperation(insn, value1, value2);
@@ -307,6 +315,8 @@ public class UserFieldInterpreter extends BasicInterpreter {
 				BasicValue value = values.get(i);
 				if (value == USER_INFLUENCED || value == USER_DERIVED || (value instanceof ArrayValue && ((ArrayValue) value).isTainted()) || (value instanceof MultiDArray && ((MultiDArray) value).isTainted())) {					
 					map.put(i, value);
+				} else if (value instanceof ReferenceValue && ((ReferenceValue) value).isTainted()) {
+					map.put(i, USER_DERIVED); //referencedval are used only for fields to simplify analysis should not permeate to nextInvokedMethod
 				}
 				i++;
 			}
@@ -314,14 +324,15 @@ public class UserFieldInterpreter extends BasicInterpreter {
 			if (!map.isEmpty()) {
 				if (method.getOpcode() == INVOKESTATIC) {
 					isStatic = true;
+				} else {
+					if (values.get(0) instanceof ReferenceValue) {
+						ReferenceValue ref = (ReferenceValue) values.get(0);
+						ref.setVal();
+					} // assume the object being a field which the method is invoked on will be tainted normal objects ignored to simplify
 				}
-//				if (UserControlledFields.containsKey(method.owner)) {
-//					mf = new MethodInfo(method.owner, method.name, isStatic, map, method.desc, true);
-//				} else {
-//					mf = new MethodInfo(method.owner, method.name, isStatic, map, method.desc, false);
-//				} // need to be fixed so the owner corresponds to field name
+
 				String owner = method.owner;
-				mf = new MethodInfo(owner, method.name, isStatic, map, method.desc, false);
+				mf = new MethodInfo(owner, method.name, isStatic, map, method.desc);
 				if (!nextInvokedMethod.contains(mf)) {
 					if (!MethodInfo.checkIsInputStream(mf)) 
 						nextInvokedMethod.add(mf);
@@ -330,7 +341,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 			}
 		} else if (insn instanceof InvokeDynamicInsnNode) {
 			for (BasicValue value : values) {
-				if (value == USER_INFLUENCED || value == USER_DERIVED) {
+				if (value == USER_INFLUENCED || value == USER_DERIVED || (value instanceof ArrayValue && ((ArrayValue) value).isTainted()) || (value instanceof MultiDArray && ((MultiDArray) value).isTainted()) || (value instanceof ReferenceValue && ((ReferenceValue) value).isTainted())) {
 					return USER_DERIVED; // needs to be improved rendering of the actual method owner
 				}
 			}
@@ -358,6 +369,14 @@ public class UserFieldInterpreter extends BasicInterpreter {
 		return super.merge(value1, value2);
 	}
 	
+	public static String convertVal(BasicValue value) {
+		if (value == USER_INFLUENCED) {
+			return "Influenced";
+		} else if (value == USER_DERIVED) 
+			return "Derived";
+		return "";
+	}
+	
 	public static class ArrayValue extends BasicValue {
 		private BasicValue length;
 		private BasicValue contents;
@@ -382,10 +401,18 @@ public class UserFieldInterpreter extends BasicInterpreter {
 			}
 		}
 		
-		public boolean isTainted() {
+		private boolean isTainted() {
 			if (length == USER_DERIVED || length == USER_INFLUENCED || contents == USER_DERIVED || contents == USER_INFLUENCED) 
 				return true;
 			return false;
+		}
+		
+		@Override
+		public String toString() { // used to reinitialization when analysis is continued
+			StringBuffer sb = new StringBuffer("ArrayValue,");
+			sb.append(convertVal(length) + ",");
+			sb.append(convertVal(contents));
+			return sb.toString();
 		}
 	}
 	
@@ -393,7 +420,6 @@ public class UserFieldInterpreter extends BasicInterpreter {
 		private MultiDArray nested;
 		private MultiDArray parent;
 		private int dim;
-		private boolean isLast = false;
 		private BasicValue content;
 		private BasicValue length;
 		private BasicValue indivLength;
@@ -404,12 +430,19 @@ public class UserFieldInterpreter extends BasicInterpreter {
 			this.dim = dim; //inversed
 			if (dim > 1) {
 				nested = new MultiDArray(null, dim - 1, this);
-				if (nested.dim == 1) 
-					nested.isLast = true;
 			}
 		}
 		
-		private void setAllLengths(BasicValue val) {
+		public MultiDArray getNested() {
+			return nested;
+		}
+		
+		//for external reinit use
+		public void setLength(BasicValue val) {
+			length = val;
+		}
+		
+		public void setAllLengths(BasicValue val) {
 			if (length == USER_DERIVED) {
 			} else if (length == USER_INFLUENCED) {
 				if (val != USER_INFLUENCED) {
@@ -443,7 +476,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 				links.forEach(e -> e.setAllContents(val));
 		}
 		
-		private void setAllContents(BasicValue val) {
+		public void setAllContents(BasicValue val) {
 			if (content == USER_DERIVED) {
 			} else if (content == USER_INFLUENCED) {
 				if (val != USER_INFLUENCED) {
@@ -458,10 +491,54 @@ public class UserFieldInterpreter extends BasicInterpreter {
 			}
 		}
 		
-		public boolean isTainted() {
+		private boolean isTainted() {
 			if (length == USER_DERIVED || length == USER_INFLUENCED || content == USER_DERIVED || content == USER_INFLUENCED)
 				return true;
 			return false;
+		}
+		
+		@Override
+		public String toString() {
+			StringBuffer sb = new StringBuffer("MultiDArray," + dim + "," + convertVal(length) + "," + convertVal(content) + "/");
+			LinkedList<MultiDArray> links = new LinkedList<>();
+			links.addFirst(this);
+			MultiDArray currentD = this;
+			while (currentD.parent != null) {
+				currentD = currentD.parent;
+				links.addFirst(currentD);
+			}
+			currentD = this;
+			while (currentD.nested != null) {
+				currentD = currentD.nested;
+				links.addLast(currentD);
+			}
+			links.forEach(a -> {
+				sb.append(convertVal(a.indivLength) + "/");
+			});
+			sb.append(links.size());
+			return sb.toString();
+		}
+	}
+	/*
+	 * for fields that are of reference type which when initiated is not user controlled 
+	 * but can become so due to methods called on it
+	 */
+	private static class ReferenceValue extends BasicValue { 
+		private BasicValue value;
+		
+		private ReferenceValue(final Type type) {
+			super(type);
+		}
+		
+		private boolean isTainted() {
+			if (value == USER_DERIVED) {
+				return true;
+			}
+			return false;
+		}
+		
+		private void setVal() {
+			value = USER_DERIVED;
 		}
 	}
 }

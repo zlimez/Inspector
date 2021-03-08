@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
+import java.util.Scanner;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -17,7 +18,11 @@ import org.objectweb.asm.tree.analysis.BasicValue;
 
 import methodsEval.MethodInfo;
 import methodsEval.RenderClass;
+import methodsEval.RenderMethod;
+import userFields.RenderConstructorAndStream;
 import userFields.UserFieldInterpreter;
+import userFields.UserFieldInterpreter.ArrayValue;
+import userFields.UserFieldInterpreter.MultiDArray;
 
 public class Gadget implements Serializable {
 	private static final long serialVersionUID = 1L;
@@ -62,18 +67,26 @@ public class Gadget implements Serializable {
 		this.depth = depth;
 	}
 	
-	public List<MethodInfo> InspectMethod() {
+	public List<MethodInfo> InspectMethod(Map<String, Map<String, String>> magicMethods) {
 		ClassReader cr = new ClassReader(byteContent);
 		String owner = cr.getClassName();
 		ClassWriter cw = new ClassWriter(cr, 0);
+		String cName = owner.replaceAll("/", "\\."); 
+		if (magicMethods.containsKey(cName)) {
+			RenderConstructorAndStream rcs = new RenderConstructorAndStream(cw, owner, magicMethods.get(cName));
+			cr.accept(rcs, 0);
+			RenderMethod rm = new RenderMethod(cw, owner, method.getName(), method.getDesc(), userControlledArgPos, rcs.getUserControlledFields());
+			cr.accept(rm, 0);
+			return rm.getNextInvokedMethods();
+		} 
 		RenderClass rc = new RenderClass(cw, owner, method.getName(), method.getDesc(), userControlledArgPos);
 		cr.accept(rc, 0);
-//		rc.getNextInvokedMethods().forEach(e -> {
-//			System.out.print(" " + e.getOwner() + ":" + e.getName() + " ");
-//			e.getUserControlledArgPos().forEach((k, v) -> System.out.print(k + ","));
-//			System.out.println();
-//		});
 		return rc.getNextInvokedMethods(); // find all possible candidate method calls
+//		rc.getNextInvokedMethods().forEach(e -> {
+//		System.out.print(" " + e.getOwner() + ":" + e.getName() + " ");
+//		e.getUserControlledArgPos().forEach((k, v) -> System.out.print(k + ","));
+//		System.out.println();
+//	});
 	}
 	
 	/*
@@ -114,7 +127,7 @@ public class Gadget implements Serializable {
 		} // cases where the class the method belongs to is not found as it is not serializable but could be a blacklisted class:method
 		
 		subtypes.forEach((k, v) -> {
-			Method[] allMethods = k.getDeclaredMethods(); // should include accessor rendering as well to check whether the method can indeed be called
+			Method[] allMethods = k.getDeclaredMethods(); 
 			for (int i = 0; i < allMethods.length; i++) {
 				if (methodName.equals(allMethods[i].getName()) && methodDesc.equals(MethodInfo.convertDescriptor(allMethods[i]))) {
 					Gadget nextComp = new Gadget(k, method, this, v, method.getUserControlledArgPos(), depth + 1); // later should include classes who inherited the method to show all gadget chain possibilities
@@ -209,10 +222,14 @@ public class Gadget implements Serializable {
 		argVals = new Hashtable<>();
 		userControlledArgPos.forEach((k, v) -> {
 			String valRep;
-			if (v == UserFieldInterpreter.USER_DERIVED) {
-				valRep = "Derived";
-			} else {
+			if (v == UserFieldInterpreter.USER_INFLUENCED) {
 				valRep = "Influenced";
+			} else if (v instanceof ArrayValue) {
+				valRep = ((ArrayValue) v).toString();
+			} else if (v instanceof MultiDArray) {
+				valRep = ((MultiDArray) v).toString();
+			} else {
+				valRep = "Derived";
 			}
 			argVals.put(k, valRep);
 		});
@@ -230,8 +247,48 @@ public class Gadget implements Serializable {
 		argVals.forEach((k, v) -> {
 			if (v.equals("Derived")) {
 				userControlledArgPos.put(k, UserFieldInterpreter.USER_DERIVED);
-			} else {
+			} else if (v.equals("Influenced")) {
 				userControlledArgPos.put(k, UserFieldInterpreter.USER_INFLUENCED);
+			} else if (v.startsWith("ArrayValue")) {
+				Scanner scan = new Scanner(v);
+				scan.useDelimiter("\\,");
+				scan.next();
+				String l = scan.next();
+				String c = scan.next();
+				scan.close();
+				BasicValue length = l.equals("Influenced")? UserFieldInterpreter.USER_INFLUENCED : UserFieldInterpreter.USER_DERIVED;
+				BasicValue content = c.equals("Influenced")? UserFieldInterpreter.USER_INFLUENCED : UserFieldInterpreter.USER_DERIVED;
+				ArrayValue arr = new ArrayValue(null, length);
+				arr.setContents(content);
+				userControlledArgPos.put(k, arr);
+			} else if (v.startsWith("MultiDArray")) {
+				Scanner scan = new Scanner(v);
+				scan.useDelimiter("\\,|/");
+				scan.next();
+				int maxDim = Integer.parseInt(v.substring(v.length() - 1));
+				MultiDArray gparent = new MultiDArray(null, maxDim, null);
+				int dim = scan.nextInt();
+				String al = scan.next();
+				String cl = scan.next();
+				BasicValue allLength = al.equals("Influenced")? UserFieldInterpreter.USER_INFLUENCED : UserFieldInterpreter.USER_DERIVED;
+				BasicValue allContent = cl.equals("Influenced")? UserFieldInterpreter.USER_INFLUENCED : UserFieldInterpreter.USER_DERIVED;
+				MultiDArray.setEntireNest(gparent, 1, allLength);
+				MultiDArray.setEntireNest(gparent, 2, allContent);
+				
+				MultiDArray currentD = gparent;
+				for (int i = 0; i < maxDim; i++) {
+					String l = scan.next();
+					BasicValue length = l.equals("Influenced")? UserFieldInterpreter.USER_INFLUENCED : UserFieldInterpreter.USER_DERIVED;
+					currentD.setLength(length);
+					currentD = currentD.getNested();
+				}
+				scan.close();
+				
+				MultiDArray actualArr = gparent;
+				for (int i = 0; i < maxDim - dim; i++) {
+					actualArr = actualArr.getNested();
+				}
+				userControlledArgPos.put(k, actualArr);
 			}
 		});
 	}
