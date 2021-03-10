@@ -4,12 +4,11 @@ import java.io.Externalizable;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.lang.reflect.Method;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.objectweb.asm.tree.analysis.BasicValue;
+import org.objectweb.asm.tree.analysis.Value;
 
 public class MethodInfo implements Serializable {
 	private static final long serialVersionUID = 1L;
@@ -17,15 +16,17 @@ public class MethodInfo implements Serializable {
 	private String name;
 	private String desc;
 	private boolean isStatic; // determines do i need to parse the constructor of the next interesting method
-	private transient Map<Integer, BasicValue> userControlledArgPos;
-	private int parameterCount;
+	private transient Map<Integer, Value> userControlledArgPos;
+	private transient int parameterCount;
+	private boolean isField;
 	
-	public MethodInfo(String owner, String name, boolean isStatic, Map<Integer, BasicValue> userControlledArgPos, String desc) {
+	public MethodInfo(String owner, String name, boolean isStatic, Map<Integer, Value> userControlledArgPos, String desc, boolean isField) {
 		this.name = name;
 		this.owner = owner;
 		this.isStatic = isStatic;
 		this.userControlledArgPos = userControlledArgPos;
 		this.desc = desc;
+		this.isField = isField;
 	}
 	
 	public MethodInfo(String name, String desc, boolean isStatic, int parameterCount) { //for entry point only
@@ -43,7 +44,7 @@ public class MethodInfo implements Serializable {
 		return isStatic;
 	}
 	
-	public Map<Integer, BasicValue> getUserControlledArgPos() {
+	public Map<Integer, Value> getUserControlledArgPos() {
 		return userControlledArgPos;
 	}
 	
@@ -59,22 +60,26 @@ public class MethodInfo implements Serializable {
 		return parameterCount;
 	}
 	
-	@Override
-	public boolean equals(Object o) {
-		MethodInfo method = (MethodInfo) o;
-		if (method.getOwner().equals(owner) && method.getName().equals(name) && method.getDesc().equals(desc) && method.isStatic == isStatic && method.getUserControlledArgPos().size() == userControlledArgPos.size()) {
-			Iterator<Map.Entry<Integer, BasicValue>> it = method.getUserControlledArgPos().entrySet().iterator();
-			while (it.hasNext()) {
-				Map.Entry<Integer, BasicValue> arg = (Map.Entry<Integer, BasicValue>) it.next();
-				int k = arg.getKey();
-				if (!userControlledArgPos.containsKey(k)) {
-					return false; // User_Derived and User_Controlled considered same as they yield same evaluation result can be overriden to increase accuracy
-				}
-			}
-			return true;
-		}
-		return false;
+	public boolean getIsField() {
+		return isField;
 	}
+	
+//	@Override
+//	public boolean equals(Object o) {
+//		MethodInfo method = (MethodInfo) o;
+//		if (method.getOwner().equals(owner) && method.getName().equals(name) && method.getDesc().equals(desc) && method.isStatic == isStatic && method.isField == isField && method.getUserControlledArgPos().size() == userControlledArgPos.size()) {
+//			Iterator<Map.Entry<Integer, BasicValue>> it = method.getUserControlledArgPos().entrySet().iterator();
+//			while (it.hasNext()) {
+//				Map.Entry<Integer, BasicValue> arg = (Map.Entry<Integer, BasicValue>) it.next();
+//				int k = arg.getKey();
+//				if (!userControlledArgPos.containsKey(k)) {
+//					return false; // User_Derived and User_Controlled considered same as they yield same evaluation result can be overriden to increase accuracy
+//				}
+//			}
+//			return true;
+//		}
+//		return false;
+//	}
 	
 	public static int countArgs(String desc) {
 		String signature = desc.replaceAll("\\)\\S+", "");

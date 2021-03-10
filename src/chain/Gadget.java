@@ -7,10 +7,12 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
 
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
@@ -67,19 +69,22 @@ public class Gadget implements Serializable {
 		this.depth = depth;
 	}
 	
-	public List<MethodInfo> InspectMethod(Map<String, Map<String, String>> magicMethods) {
+	public Set<MethodInfo> InspectMethod(Map<String, Map<String, String>> magicMethods) {
 		ClassReader cr = new ClassReader(byteContent);
 		String owner = cr.getClassName();
 		ClassWriter cw = new ClassWriter(cr, 0);
 		String cName = owner.replaceAll("/", "\\."); 
-		if (magicMethods.containsKey(cName)) {
+		if (magicMethods.containsKey(cName) && method.getIsField()) {
 			RenderConstructorAndStream rcs = new RenderConstructorAndStream(cw, owner, magicMethods.get(cName));
 			cr.accept(rcs, 0);
+			Set<MethodInfo> nextMethods = new HashSet<>();
+			nextMethods.addAll(rcs.getNextInvokedMethods());
 			RenderMethod rm = new RenderMethod(cw, owner, method.getName(), method.getDesc(), userControlledArgPos, rcs.getUserControlledFields());
 			cr.accept(rm, 0);
-			return rm.getNextInvokedMethods();
+			nextMethods.addAll(rm.getNextInvokedMethods());
+			return nextMethods;
 		} 
-		RenderClass rc = new RenderClass(cw, owner, method.getName(), method.getDesc(), userControlledArgPos);
+		RenderClass rc = new RenderClass(cw, owner, method.getName(), method.getDesc(), userControlledArgPos, method.getIsField());
 		cr.accept(rc, 0);
 		return rc.getNextInvokedMethods(); // find all possible candidate method calls
 //		rc.getNextInvokedMethods().forEach(e -> {

@@ -2,9 +2,11 @@ package userFields;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.FieldVisitor;
@@ -20,6 +22,7 @@ public class RenderConstructorAndStream extends ClassVisitor{
 	ConstructorTracer ct;
 	MethodTracer mt;
 	Map<String, BasicValue> userControlledFields = new HashMap<>();
+	Set<MethodInfo> nextInvokedMethods = new HashSet<>();
 	Map<String, String> magicMethods = new HashMap<>();
 	List<String> transientFields = new ArrayList<>();
 	boolean isFirstPass = true;
@@ -66,6 +69,7 @@ public class RenderConstructorAndStream extends ClassVisitor{
 			} else {
 				if (mt != null) {
 					userControlledFields.putAll(mt.getUserControlledFields());
+					nextInvokedMethods.addAll(mt.getNextInvokedMethods());
 				}
 			}
 			Map<Integer, BasicValue> userControlledArgPos = new HashMap<>();
@@ -83,5 +87,12 @@ public class RenderConstructorAndStream extends ClassVisitor{
 			userControlledFields.putAll(mt.getUserControlledFields());
 		}
 		return userControlledFields;
+	}
+	
+	public Set<MethodInfo> getNextInvokedMethods() { // if object is field and serializable its magic method will be invoked leading to more methods being called
+		if (mt != null) {
+			nextInvokedMethods.addAll(mt.getNextInvokedMethods());
+		}
+		return nextInvokedMethods;
 	}
 }

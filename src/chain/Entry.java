@@ -8,6 +8,7 @@ import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.objectweb.asm.tree.analysis.BasicValue;
 
@@ -37,7 +38,7 @@ public class Entry {
 					}
 					MethodInfo mf = new MethodInfo(methodName, MethodInfo.convertDescriptor(method), isStatic, argLength);  
 					Gadget possibleEntry = new Gadget(c, mf, null, clazz.getValue(), sim, 1);
-					List<MethodInfo> next = possibleEntry.InspectMethod(new HashMap<>());
+					Set<MethodInfo> next = possibleEntry.InspectMethod(new HashMap<>());
 
 					if (next.size() > 0) {
 						info.add(mf);

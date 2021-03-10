@@ -3,6 +3,7 @@ package methodsEval;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
@@ -38,7 +39,7 @@ public class RenderMethod extends ClassVisitor {
 		return mv;
 	}
 	
-	public List<MethodInfo> getNextInvokedMethods() {
+	public Set<MethodInfo> getNextInvokedMethods() {
 		return mt.getNextInvokedMethods();
 	}
 }

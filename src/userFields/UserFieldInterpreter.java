@@ -2,16 +2,19 @@ package userFields;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.analysis.AnalyzerException;
 import org.objectweb.asm.tree.analysis.BasicInterpreter;
 import org.objectweb.asm.tree.analysis.BasicValue;
+import org.objectweb.asm.tree.analysis.Value;
 
 import methodsEval.MethodInfo;
 
@@ -30,7 +33,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	private Map<Integer, BasicValue> userControlledArgPos;
 	private int counter = 0;
 	private int numOfArgs;
-	public List<MethodInfo> nextInvokedMethod = new ArrayList<>();
+	public Set<MethodInfo> nextInvokedMethod = new HashSet<>();
 	
 	public UserFieldInterpreter(boolean isConstructor, boolean isMethod, int numOfArgs, Map<Integer, BasicValue> userControlledArgPos) {
 		super(ASM9);
@@ -61,7 +64,7 @@ public class UserFieldInterpreter extends BasicInterpreter {
 		return UserControlledFields;
 	}
 	
-	public List<MethodInfo> getNextInvokedMethods() {
+	public Set<MethodInfo> getNextInvokedMethods() {
 		return nextInvokedMethod;
 	}
  	
@@ -306,8 +309,9 @@ public class UserFieldInterpreter extends BasicInterpreter {
 	 public BasicValue naryOperation(final AbstractInsnNode insn, final List<? extends BasicValue> values) throws AnalyzerException {
 		if (insn instanceof MethodInsnNode) {
 			MethodInsnNode method = (MethodInsnNode) insn;
-			Map<Integer, BasicValue> map = new Hashtable<>(); 
+			Map<Integer, Value> map = new Hashtable<>(); 
 			boolean isStatic = false;
+			boolean isField = false;
 			MethodInfo mf;
 			
 			int i = 0;
@@ -328,15 +332,14 @@ public class UserFieldInterpreter extends BasicInterpreter {
 					if (values.get(0) instanceof ReferenceValue) {
 						ReferenceValue ref = (ReferenceValue) values.get(0);
 						ref.setVal();
+						isField = true;
 					} // assume the object being a field which the method is invoked on will be tainted normal objects ignored to simplify
 				}
 
 				String owner = method.owner;
-				mf = new MethodInfo(owner, method.name, isStatic, map, method.desc);
-				if (!nextInvokedMethod.contains(mf)) {
-					if (!MethodInfo.checkIsInputStream(mf)) 
-						nextInvokedMethod.add(mf);
-				}
+				mf = new MethodInfo(owner, method.name, isStatic, map, method.desc, isField);
+				if (!MethodInfo.checkIsInputStream(mf)) 
+					nextInvokedMethod.add(mf);
 				return USER_DERIVED;
 			}
 		} else if (insn instanceof InvokeDynamicInsnNode) {

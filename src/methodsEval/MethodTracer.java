@@ -1,8 +1,8 @@
 package methodsEval;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
@@ -18,7 +18,7 @@ public class MethodTracer extends MethodVisitor{
 	MethodVisitor next;
 	Map<Integer, BasicValue> userControlledArgPos = new HashMap<>();
 	Map<String, BasicValue> UserControlledFields = new HashMap<>();
-	List<MethodInfo> nextInvokedMethods;
+	Set<MethodInfo> nextInvokedMethods;
 	boolean isMagicMethod = false;
 	
 	public MethodTracer(String owner, int access, String name, String desc, MethodVisitor mv, Map<Integer, BasicValue> userControlledArgPos, Map<String, BasicValue> UserControlledFields, boolean ... isMagicMethod) {
@@ -50,7 +50,7 @@ public class MethodTracer extends MethodVisitor{
 		mn.accept(next);
 	}
 	
-	public List<MethodInfo> getNextInvokedMethods() {
+	public Set<MethodInfo> getNextInvokedMethods() {
 		return nextInvokedMethods;
 	}
 	

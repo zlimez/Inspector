@@ -424,7 +424,7 @@ public class Enumerate implements Serializable {
 				gadget.storeArgVals();
 				endPoints.add(gadget);
 			} else {
-				List<MethodInfo> next = gadget.InspectMethod(magicMethods);
+				Set<MethodInfo> next = gadget.InspectMethod(magicMethods);
 				
 				if (next.size() == 0) {
 					System.out.println("No next method found");
@@ -482,7 +482,7 @@ public class Enumerate implements Serializable {
 			return; // prevent excessive recursion
 		}
 		
-		List<MethodInfo> next = gadget.InspectMethod(magicMethods);
+		Set<MethodInfo> next = gadget.InspectMethod(magicMethods);
 		
 		if (next.size() == 0) {
 			System.out.println("No next method found");

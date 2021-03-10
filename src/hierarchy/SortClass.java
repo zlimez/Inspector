@@ -54,12 +54,8 @@ public class SortClass {
 			List<Map<Class<?>, byte[]>> combined = getSerialLibClasses();
 			Map<Class<?>, byte[]> allSerialTypes = combined.get(0);
 			Map<Class<?>, byte[]> allClasses = combined.get(1); 
-			
-			String regexStr = "/";
-			String replacementStr = "\\.";
-			Pattern pattern = Pattern.compile(regexStr);
-			Class<?> serial = Class.forName("java.io.Serializable");
-			
+		
+			Class<?> serial = Class.forName("java.io.Serializable");	
 			Object[] URLAndClass = Unpack.getClassesPath();
 			genericLoader.addURL((URL) URLAndClass[0]);
 			
@@ -67,9 +63,7 @@ public class SortClass {
 			List<byte[]> clazzes = (List<byte[]>) URLAndClass[1];
 			clazzes.forEach(b -> {
 				ClassReader cr = new ClassReader(b);
-				String inputClazz = cr.getClassName();
-				Matcher matcher = pattern.matcher(inputClazz);
-				String outputStr = matcher.replaceAll(replacementStr);
+				String outputStr = cr.getClassName().replaceAll("\\.", "/");
 				
 				try {
 					Class<?> userClazz = Class.forName(outputStr, false, genericLoader);
