@@ -1,25 +1,22 @@
 package methodsEval;
 
-import java.util.HashMap;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
-import java.util.Set;
 
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.tree.analysis.BasicValue;
+import org.objectweb.asm.tree.analysis.Value;
 
 public class RenderMethod extends ClassVisitor {
-	// Inspect a method to find the next method call within this method
 	String owner;
 	String methodName;
 	String descriptor;
-	Map<Integer, BasicValue> userControlledArgPos = new HashMap<>();
-	Map<String, BasicValue> userControlledFields = new HashMap<>();
+	Map<Integer, Value> userControlledArgPos;
+	Map<String, Value> userControlledFields;
 	MethodTracer mt;
 	
-	public RenderMethod(ClassVisitor cv, String owner, String methodName, String desc, Map<Integer, BasicValue> userControlledArgPos, Map<String, BasicValue> userControlledFields) {
+	public RenderMethod(ClassVisitor cv, String owner, String methodName, String desc, Map<Integer, Value> userControlledArgPos, Map<String, Value> userControlledFields) {
 		super(Opcodes.ASM9, cv);
 		this.owner = owner;
 		this.methodName = methodName;
@@ -39,7 +36,7 @@ public class RenderMethod extends ClassVisitor {
 		return mv;
 	}
 	
-	public Set<MethodInfo> getNextInvokedMethods() {
+	public Collection<MethodInfo> getNextInvokedMethods() {
 		return mt.getNextInvokedMethods();
 	}
 }

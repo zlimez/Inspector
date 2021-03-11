@@ -13,8 +13,6 @@ import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.objectweb.asm.ClassReader;
 
@@ -24,17 +22,17 @@ import org.reflections.util.ClasspathHelper;
 import org.reflections.util.ConfigurationBuilder;
 
 public class SortClass {
-	private String pathToFile;
+	private String[] pathToFile;
 	private CustomLoader genericLoader;
 	private String serverDir;
 	private String tempDir;
 	
-	public SortClass(String ... path) {
-		this.pathToFile = path[0];
-		if (path.length > 1) {
-			this.serverDir = path[1];
-			if (path.length > 2) {
-				this.tempDir = path[2];
+	public SortClass(String[] filesToScan, String ... path) {
+		this.pathToFile = filesToScan;
+		if (path.length > 0) {
+			this.serverDir = path[0];
+			if (path.length > 1) {
+				this.tempDir = path[1];
 			}
 		}
 	}
@@ -50,7 +48,7 @@ public class SortClass {
 			Unpack.initialize();
 		
 		if (serverDir != null) {
-			genericLoader = Unpack.getLibLoader(Paths.get(pathToFile));
+			genericLoader = Unpack.getLibLoader(Paths.get(pathToFile[0]));
 			List<Map<Class<?>, byte[]>> combined = getSerialLibClasses();
 			Map<Class<?>, byte[]> allSerialTypes = combined.get(0);
 			Map<Class<?>, byte[]> allClasses = combined.get(1); 
@@ -81,8 +79,12 @@ public class SortClass {
 			combined.add(allSerialTypes);
 			combined.add(allClasses); 
 			return combined;
-		} 
-		genericLoader = Unpack.getJarClassLoader(Paths.get(pathToFile));
+		}
+		Path[] paths = new Path[pathToFile.length];
+		for (int i = 0; i < pathToFile.length; i++) {
+			paths[i] = Paths.get(pathToFile[i]);
+		}
+		genericLoader = Unpack.getJarClassLoader(paths);
 		List<Map<Class<?>, byte[]>> serialAndAllTypes = getJarClasses();
 		Unpack.deleteDirectory();
 		return serialAndAllTypes;
@@ -108,12 +110,8 @@ public class SortClass {
 		Class<?> serial = Class.forName("java.io.Serializable");
 		for (Class<?> type : temp) {
 			String clazzName = type.getName();
-			String regexStr = "\\.";
-			String replacementStr = "/";
-			Pattern pattern = Pattern.compile(regexStr);
-			Matcher matcher = pattern.matcher(clazzName);
-			String output = matcher.replaceAll(replacementStr);
-			Path libDir = Paths.get("/home/pcadmin/Sample");
+			String output = clazzName.replaceAll("\\.", "/");
+			Path libDir = Unpack.warDir;
 			Path pathToClass = libDir.resolve(output + ".class");
 			
 			try (
@@ -160,12 +158,8 @@ public class SortClass {
 		Class<?> serial = Class.forName("java.io.Serializable");
 		for (Class<?> type : temp) {
 			String clazzName = type.getName();
-			String regexStr = "\\.";
-			String replacementStr = "/";
-			Pattern pattern = Pattern.compile(regexStr);
-			Matcher matcher = pattern.matcher(clazzName);
-			String output = matcher.replaceAll(replacementStr);
-			Path libDir = Paths.get(tempDir);
+			String output = clazzName.replaceAll("\\.", "/");
+			Path libDir = Unpack.warDir;
 			Path pathToClass = libDir.resolve("WEB-INF/lib/" + output + ".class");
 			try (
 				FileInputStream fis = new FileInputStream(pathToClass.toFile());

@@ -3,17 +3,18 @@ package chain;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
-import org.objectweb.asm.tree.analysis.BasicValue;
+import org.objectweb.asm.tree.analysis.Value;
 
 import methodsEval.MethodInfo;
-import userFields.UserFieldInterpreter;
+import userFields.CustomInterpreter.ReferenceValue;
+import userFields.UserValues;;
 
 public class Entry {
 	public static Map<Class<?>, List<Object>> EntryPoint(Map<Class<?>, byte[]> classes) {
@@ -28,17 +29,19 @@ public class Entry {
 				String methodName = method.getName();
 				if (methodName.equals("readObject") || methodName.equals("readResolve") || methodName.equals("validateObject") || methodName.equals("readObjectNoData") || methodName.equals("readExternal")) {
 					boolean isStatic = Modifier.isStatic(method.getModifiers()) ? true : false;
-					Map<Integer, BasicValue> sim = new Hashtable<Integer, BasicValue>();
+					Map<Integer, Value> sim = new Hashtable<Integer, Value>();
 					int argLength = method.getParameterCount();  
 					for (int i = 0; i < argLength; i++) { 
-						sim.put(i + 1, UserFieldInterpreter.USER_INFLUENCED); // input stream is controlled by user hence whatever is read from it is too
+						sim.put(i + 1, new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE)); // input stream is controlled by user hence whatever is read from it is too
 					}
 					if (!isStatic) {
-						sim.put(0, UserFieldInterpreter.USER_DERIVED);
+						ReferenceValue thisObject = new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE);
+						thisObject.setField();
+						sim.put(0, thisObject);
 					}
 					MethodInfo mf = new MethodInfo(methodName, MethodInfo.convertDescriptor(method), isStatic, argLength);  
 					Gadget possibleEntry = new Gadget(c, mf, null, clazz.getValue(), sim, 1);
-					Set<MethodInfo> next = possibleEntry.InspectMethod(new HashMap<>());
+					Collection<MethodInfo> next = possibleEntry.InspectMethod(new HashMap<>());
 
 					if (next.size() > 0) {
 						info.add(mf);

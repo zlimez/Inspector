@@ -25,13 +25,13 @@ import java.util.regex.Pattern;
 import hierarchy.SortClass.CustomLoader;
 
 public class Unpack {
-	private static Path warDir;
+	public static Path warDir;
 	
 	public static void initialize(String ... dest) throws IOException {
 		if (dest.length == 1)
 			warDir = Files.createDirectory(Paths.get(dest[0]));
 		else 
-			warDir = Files.createDirectory(Paths.get("/home/pcadmin/Sample"));
+			warDir = Files.createDirectory(Paths.get(".").resolve("Sample"));
 	}
 	// Return classloader for jar file entries in lib directory to feed to reflections
 	public static CustomLoader getLibLoader(Path warPath) throws IOException {
@@ -133,7 +133,7 @@ public class Unpack {
 		return URLAndClass;
 	}
 
-    public static CustomLoader getJarClassLoader(Path ... jarPaths) throws IOException {
+    public static CustomLoader getJarClassLoader(Path[] jarPaths) throws IOException {
         final List<URL> classPathUrls = new ArrayList<>(jarPaths.length);
         for (Path jarPath : jarPaths) {
             if (!Files.exists(jarPath) || Files.isDirectory(jarPath)) {

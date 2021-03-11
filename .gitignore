@@ -4,3 +4,5 @@ deprecated/
 dryrun/
 # ignore log
 *.log
+# ignore sql file
+*ConfigFile

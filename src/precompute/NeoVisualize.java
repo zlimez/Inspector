@@ -88,7 +88,7 @@ public class NeoVisualize implements AutoCloseable {
 		params.put("class", classname);
 		MethodInfo method = gadget.getMethod();
 		String methodDesc = method.getName() + ":" + method.getDesc();
-		String methodType = method.getMethodType()? "static" : "instance";
+		String methodType = method.getIsStatic()? "static" : "instance";
 		params.put("methodType", methodType);
 		params.put("method", methodDesc);
 		StringBuffer sb = new StringBuffer();
