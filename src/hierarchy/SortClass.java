@@ -27,7 +27,7 @@ public class SortClass {
 	private String pathToFile;
 	private CustomLoader genericLoader;
 	private String serverDir;
-	private String tempDir = "/home/pcadmin/Sample";
+	private String tempDir;
 	
 	public SortClass(String ... path) {
 		this.pathToFile = path[0];

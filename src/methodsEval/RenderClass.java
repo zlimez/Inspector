@@ -2,7 +2,6 @@ package methodsEval;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
@@ -14,7 +13,7 @@ import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.tree.analysis.BasicValue;
 
 import org.objectweb.asm.FieldVisitor;
-import userFields.ConstructorTracer;
+import methodsEval.userFields.ConstructorTracer;
 
 public class RenderClass extends ClassVisitor {
 	String owner;
@@ -71,13 +70,6 @@ public class RenderClass extends ClassVisitor {
 			if (ct != null) {
 				userControlledFields.putAll(ct.getUserControlledFields());
 			} // last constructor before specified method is inspected
-//			Iterator<Map.Entry<String, BasicValue>> it = userControlledFields.entrySet().iterator();
-//			while (it.hasNext()) {
-//				Map.Entry<String, BasicValue> field = (Map.Entry<String, BasicValue>) it.next();
-//				if (transientFields.contains(field.getKey())) {
-//					it.remove();
-//				}
-//			} // USER_INFLUENCED should take precedence over USER_DERIVED
 			mv = new MethodTracer(owner, acc, name, desc, mv, userControlledArgPos, userControlledFields);
 			mt = (MethodTracer) mv;
 		} // assume constructor comes before any methods

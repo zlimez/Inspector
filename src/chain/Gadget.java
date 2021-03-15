@@ -17,7 +17,7 @@ import org.objectweb.asm.tree.analysis.BasicValue;
 
 import methodsEval.MethodInfo;
 import methodsEval.RenderClass;
-import userFields.UserFieldInterpreter;
+import methodsEval.userFields.UserFieldInterpreter;
 
 public class Gadget implements Serializable {
 	private static final long serialVersionUID = 1L;

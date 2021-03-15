@@ -11,7 +11,7 @@ import org.objectweb.asm.tree.analysis.Analyzer;
 import org.objectweb.asm.tree.analysis.AnalyzerException;
 import org.objectweb.asm.tree.analysis.BasicValue;
 
-import userFields.UserFieldInterpreter;
+import methodsEval.userFields.UserFieldInterpreter;
 
 public class MethodTracer extends MethodVisitor{
 	String owner;

@@ -12,7 +12,7 @@ import java.util.Map;
 import org.objectweb.asm.tree.analysis.BasicValue;
 
 import methodsEval.MethodInfo;
-import userFields.UserFieldInterpreter;
+import methodsEval.userFields.UserFieldInterpreter;
 
 public class Entry {
 	public static Map<Class<?>, List<Object>> EntryPoint(Map<Class<?>, byte[]> classes) {

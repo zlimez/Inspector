@@ -36,7 +36,7 @@ import methodsEval.MethodInfo;
 import precompute.DbConnector;
 import precompute.NeoVisualize;
 import precompute.StoreHierarchy;
-import userFields.UserFieldInterpreter;
+import methodsEval.userFields.UserFieldInterpreter;
 
 public class Enumerate implements Serializable {
 	private static final long serialVersionUID = 1L;
@@ -62,9 +62,6 @@ public class Enumerate implements Serializable {
 	private Map<String, Set<byte[]>> inithierarchy; //used to reinitialize hierarchy when analysis is continued 
 	
 	public static void main(String[] args) throws ClassNotFoundException, IOException, SQLException, InvalidInputException {
-//		String pathToFile = "/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/commons-collections4-4.0.jar";
-//		int jdkVersion = 11;
-		
 		try (Scanner in = new Scanner(System.in)) {
 			System.out.println("Are you starting a new analysis or do you wish to continue from one of the end points reached in previous analysis? (new/continue)?");
 			String isNew = in.next();
@@ -102,9 +99,6 @@ public class Enumerate implements Serializable {
 		 
 				target.configCommonVars(in);
 				target.isContinued = false;
-//				target.maxDepth = 7;
-//				target.isDFS = true;
-//				target.outputFile = "/home/pcadmin/chains";
 				
 				System.out.println("Do you wish to select specific class:methods to start the analysis (Y/N)?");
 				String choice = in.next();
@@ -145,27 +139,32 @@ public class Enumerate implements Serializable {
 					throw new InvalidInputException("Invalid input");
 				}
 			
-//		target.scanStart = new Hashtable<>();
-//		List<String> methods = new ArrayList<>();
-//		methods.add("readObject(Ljava/io/ObjectInputStream;)V");
-//		target.scanStart.put("java.util.PriorityQueue", methods);
-			
 				Map<Class<?>, byte[]> dc = CheckForSerialization.deserializationOccurences(target.allClasses);
+				PrintWriter out = new PrintWriter(target.outputFile);
 				if (dc.isEmpty()) {
-					System.out.println("Warning no deserialization process in the application");
+					out.println("Warning no deserialization process in the application");
 				} else {
-					PrintWriter out = new PrintWriter(target.outputFile);
 					out.print("Location of deserialization: ");
 					dc.forEach((k, v) -> {
 						out.print(k.getName() + "; ");
 					});
 					out.println();
 					out.flush();
-					out.close();
 				}
+				out.close();
 				target.initAllEntry();
 				target.allPotentialGadgets.removeIf(g -> !g.getVisitStatus());
-				try (NeoVisualize visualize = new NeoVisualize("bolt://localhost:7687", "neo4j", "password")) {
+				in.useDelimiter("\\n");
+				System.out.println("Assuming you have neo4j desktop installed, please provide the port your DBMS is running on, your username and password in this format bolt://localhost:{portNum}, {username}, {password}");
+				String dbInfo = in.next();
+				Scanner parse = new Scanner(dbInfo);
+				parse.useDelimiter("\\s*\\,\\s*");
+				String port = parse.next();
+				String user = parse.next();
+				String pw = parse.next();
+				parse.close();
+				in.reset();
+				try (NeoVisualize visualize = new NeoVisualize(port, user, pw)) {
 					visualize.indexGraph();
 					for (Gadget start : target.allPotentialGadgets) {
 						if (start.getParent() == null) {
@@ -215,7 +214,17 @@ public class Enumerate implements Serializable {
 				} else {
 					throw new InvalidInputException("Invalid input");
 				}
-				try (NeoVisualize visualize = new NeoVisualize("bolt://localhost:7687", "neo4j", "password")) {
+				in.useDelimiter("\\n");
+				System.out.println("Assuming you have neo4j desktop installed, please provide the port your DBMS is running on, your username and password in this format bolt://localhost:{portNum}, {username}, {password}");
+				String dbInfo = in.next();
+				Scanner parse = new Scanner(dbInfo);
+				parse.useDelimiter("\\s*\\,\\s*");
+				String port = parse.next();
+				String user = parse.next();
+				String pw = parse.next();
+				parse.close();
+				in.reset();
+				try (NeoVisualize visualize = new NeoVisualize(port, user, pw)) {
 					visualize.initializeID();
 					for (Gadget start : target.allPotentialGadgets) {
 						if (start.getDepth() == target.previousDepth) {
