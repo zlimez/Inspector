@@ -61,7 +61,7 @@ public class Enumerate implements Serializable {
 	
 	private Map<String, Set<byte[]>> inithierarchy; //used to reinitialize hierarchy when analysis is continued 
 	
-	public static void main(String[] args) throws ClassNotFoundException, IOException, SQLException, InvalidInputException {
+	public static void startScan() throws ClassNotFoundException, IOException, SQLException, InvalidInputException {
 		try (Scanner in = new Scanner(System.in)) {
 			System.out.println("Are you starting a new analysis or do you wish to continue from one of the end points reached in previous analysis? (new/continue)?");
 			String isNew = in.next();
@@ -78,23 +78,34 @@ public class Enumerate implements Serializable {
 			
 			Enumerate target;
 			if (isNew.equalsIgnoreCase("new")) {
-				System.out.println("Specify the path to the jar or war file of the application you wish to scan");
-				String pathToFile = in.next();
+				in.useDelimiter("\\n");
+				System.out.println("Specify the paths to the jar files or path to the war file of the application you wish to scan (for paths to jar files shoudl be formatted as such {path1}, {path2}, ...");
+				String files = in.next();
+				Scanner divider = new Scanner(files);
+				List<String> paths = new ArrayList<>();
+				divider.useDelimiter("\\s*\\,\\s*");
+				while (divider.hasNext()) {
+					String pathToFile = divider.next();
+					paths.add(pathToFile);
+				}
+				divider.close();
+				String[] pathsToFiles = paths.toArray(new String[paths.size()]);
+				in.reset();
 				System.out.println("Specify the version of java the application will be running in (eg. 11)");
 				int jdkVersion = in.nextInt();
 				
 				DbConnector.initBlacklist(jdkVersion); 
-				if (pathToFile.endsWith(".war")) {
+				if (pathsToFiles[0].endsWith(".war")) {
 					System.out.println("Specify the path to the directory containing all the jar files of the server the war file will be running on (eg. tomcat)");
 					String serverDir = in.next();
 					if (isStore) {
 						System.out.println("Specify the path to the directory where the war file will be unzipped into");
 						String tempdir = in.next();
-						target = new Enumerate(jdkVersion, Blacklist.getList(), pathToFile, serverDir, tempdir);
+						target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles, serverDir, tempdir);
 					} else 
-						target = new Enumerate(jdkVersion, Blacklist.getList(), pathToFile, serverDir);
+						target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles, serverDir);
 				} else {
-					target = new Enumerate(jdkVersion, Blacklist.getList(), pathToFile);
+					target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles);
 				}
 		 
 				target.configCommonVars(in);
@@ -265,8 +276,8 @@ public class Enumerate implements Serializable {
 		}
 	}
 	
-	public Enumerate(int jdkVersion, Map<String, List<String>> blacklist, String ... pathToFile) throws ClassNotFoundException, IOException, SQLException {
-		SortClass sort = new SortClass(pathToFile);
+	public Enumerate(int jdkVersion, Map<String, List<String>> blacklist, String[] pathsToFiles, String ... serverTemp) throws ClassNotFoundException, IOException, SQLException {
+		SortClass sort = new SortClass(pathsToFiles, serverTemp);
 		List<Map<Class<?>, byte[]>> all = sort.getSerialAndAllClasses();
 		urls = sort.getUrls();
 		serialClazzes = all.get(0);
@@ -561,7 +572,7 @@ public class Enumerate implements Serializable {
 		});
 	}
 	
-	private static class InvalidInputException extends Exception {
+	public static class InvalidInputException extends Exception {
 		private static final long serialVersionUID = 1L;
 
 		public InvalidInputException(String message) {

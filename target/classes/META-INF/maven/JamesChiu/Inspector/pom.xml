@@ -5,17 +5,12 @@
   <version>0.0.1-SNAPSHOT</version>
   <build>
     <sourceDirectory>src</sourceDirectory>
-    <testSourceDirectory>tests</testSourceDirectory>
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.8.1</version>
         <configuration>
           <release>11</release>
-          <excludes>
-          	<exclude>**/deprecated/*</exclude>
-          	<exclude>**/dryrun/*</exclude>
-          </excludes>
         </configuration>
       </plugin>
     </plugins>
