@@ -881,16 +881,18 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 					throw new AnalyzerException(insn, "Array type mismatch with element type");
 			}
 
-			if (arr.isField == false && value3 instanceof ReferenceValue) {
-				ReferenceValue element = (ReferenceValue) value3;
-				if (element.isField) {
-					arr.isField = true;
-					arr.constructorDesc = null;
-					arr.initControlledPos = null;
-				} else if (element.constructorDesc != null) {
-					if (arr.initControlledPos == null || element.initControlledPos.size() > arr.initControlledPos.size()) {
-						arr.constructorDesc = element.constructorDesc;
-						arr.initControlledPos = element.initControlledPos;
+			if (arr.isField == false) {
+				if (value3 instanceof ObjectVal) {
+					ObjectVal element = (ObjectVal) value3;
+					if (element.isField) {
+						arr.isField = true;
+						arr.constructorDesc = null;
+						arr.initControlledPos = null;
+					} else if (element.constructorDesc != null) {
+						if (arr.initControlledPos == null || element.initControlledPos.size() > arr.initControlledPos.size()) {
+							arr.constructorDesc = element.constructorDesc;
+							arr.initControlledPos = element.initControlledPos;
+						}
 					}
 				}
 			}
@@ -1123,8 +1125,26 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 		}
 
 		public void setContents(Value val) {
-			Value newVal = UserValues.valueOverriding(contents, val);
-			contents = newVal;
+			Value insert;
+			if (val instanceof ArrayValue) {
+				ArrayValue e = (ArrayValue) val;
+				ReferenceValue ref;
+				if (e.isTainted()) {
+					ref = new ReferenceValue(UserValues.USERDERIVED_REFERENCE);
+				} else 
+					ref = new ReferenceValue(UserValues.REFERENCE_VALUE);
+				insert = ref;
+			} else if (val instanceof MultiDArray) {
+				MultiDArray e = (MultiDArray) val;
+				ReferenceValue ref;
+				if (e.isTainted()) {
+					ref = new ReferenceValue(UserValues.USERDERIVED_REFERENCE);
+				} else
+					ref = new ReferenceValue(UserValues.REFERENCE_VALUE);
+				insert = ref;
+			} else 
+				insert = val;
+			contents = UserValues.valueOverriding(contents, insert);
 		}
 		
 		public Type getType() {
@@ -1149,7 +1169,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 		}
 
 		private boolean isTainted() {
-			if ((length instanceof UserValues && ((UserValues) length).isTainted()) || (contents instanceof UserValues && ((UserValues) contents).isTainted())) 
+			if (length.isTainted() || ((contents instanceof UserValues && ((UserValues) contents).isTainted()) || (contents instanceof ReferenceValue && ((ReferenceValue) contents).isTainted()))) 
 				return true;
 			return false;
 		}		
@@ -1399,7 +1419,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 		}
 
 		private boolean isTainted() {
-			if ((length instanceof UserValues && ((UserValues) length).isTainted())|| (content instanceof UserValues && ((UserValues) content).isTainted()))
+			if (length.isTainted() || ((content instanceof UserValues && ((UserValues) content).isTainted()) || (content instanceof ReferenceValue && ((ReferenceValue) content).isTainted())))
 				return true;
 			return false;
 		}
@@ -1621,8 +1641,8 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 
 		@Override
 		public String toString() {
-			return "ReferenceValue [value=" + value + ", constructorDesc=" + constructorDesc + ", initControlledPos="
-					+ initControlledPos + ", isField=" + isField + "]";
+			return "ReferenceValue [value=" + value + ", isField=" + isField + ", constructorDesc=" + constructorDesc
+					+ ", initControlledPos=" + initControlledPos + "]";
 		}
 	}
 	

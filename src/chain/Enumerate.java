@@ -28,7 +28,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.tree.analysis.Value;
 
 import chain.serialcheck.CheckForSerialization;
 import hierarchy.BuildOrder;
@@ -37,11 +36,10 @@ import methodsEval.MethodInfo;
 import precompute.DbConnector;
 import precompute.NeoVisualize;
 import precompute.StoreHierarchy;
-import userFields.UserValues;
-import userFields.CustomInterpreter.ReferenceValue;;
 
 public class Enumerate implements Serializable {
 	private static final long serialVersionUID = 1L;
+	static int count = 0;
 	
 	private URL[] urls;
 	private transient Map<Class<?>, byte[]> serialClazzes;
@@ -53,11 +51,10 @@ public class Enumerate implements Serializable {
 	private transient String outputFile;
 	private int maxDepth;
 	private int previousDepth; 
-	private transient boolean isDFS;
 	private transient boolean isContinued;
 	private transient LinkedList<Gadget> queue;
 	private transient Map<String, List<String>> scanStart;
-	private transient ArrayList<Gadget> allPotentialGadgets;
+	private transient Set<Gadget> allPotentialGadgets;
 	
 	private transient ArrayList<Gadget> startPoints;
 	private ArrayList<Gadget> endPoints;
@@ -66,18 +63,19 @@ public class Enumerate implements Serializable {
 	
 	public static void startScan() throws ClassNotFoundException, IOException, SQLException, InvalidInputException {
 		try (Scanner in = new Scanner(System.in)) {
-			System.out.println("Are you starting a new analysis or do you wish to continue from one of the end points reached in previous analysis? (new/continue)?");
-			String isNew = in.next();
-			System.out.println("Do you wish to store the end point gadget nodes of this analysis for further analysis later? (Y/N)");
-			String resp = in.next();
-			boolean isStore;
-			if (resp.equalsIgnoreCase("Y")) {
-				isStore = true;
-			} else if (resp.equalsIgnoreCase("N")) {
-				isStore = false;
-			} else {
-				throw new InvalidInputException("Invalid input");
-			}
+//			System.out.println("Are you starting a new analysis or do you wish to continue from one of the end points reached in previous analysis? (new/continue)?");
+//			String isNew = in.next();
+			String isNew = "new";
+//			System.out.println("Do you wish to store the end point gadget nodes of this analysis for further analysis later? (Y/N)");
+//			String resp = in.next();
+			boolean isStore = false;
+//			if (resp.equalsIgnoreCase("Y")) {
+//				isStore = true;
+//			} else if (resp.equalsIgnoreCase("N")) {
+//				isStore = false;
+//			} else {
+//				throw new InvalidInputException("Invalid input");
+//			}
 			
 			Enumerate target;
 			if (isNew.equalsIgnoreCase("new")) {
@@ -98,7 +96,7 @@ public class Enumerate implements Serializable {
 //				int jdkVersion = in.nextInt();
 				
 				int jdkVersion = 11;
-				String[] pathsToFiles = new String[] {"/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/commons-collections4-4.0.jar"};
+				String[] pathsToFiles = new String[] {"/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/spring-core-5.3.6.jar", "/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/spring-jcl-5.3.6.jar"};
 				
 				DbConnector.initBlacklist(jdkVersion); 
 				if (pathsToFiles[0].endsWith(".war")) {
@@ -174,6 +172,8 @@ public class Enumerate implements Serializable {
 				out.close();
 				target.initAllEntry();
 				target.allPotentialGadgets.removeIf(g -> !g.getVisitStatus());
+//				System.out.println(target.allPotentialGadgets.size());
+//				System.out.println(count);
 				in.useDelimiter("\\n");
 				System.out.println("Assuming you have neo4j desktop installed, please provide the port your DBMS is running on, your username and password in this format bolt://localhost:{portNum}, {username}, {password}");
 				String dbInfo = in.next();
@@ -187,7 +187,7 @@ public class Enumerate implements Serializable {
 				try (NeoVisualize visualize = new NeoVisualize(port, user, pw)) {
 					visualize.indexGraph();
 					for (Gadget start : target.allPotentialGadgets) {
-						if (start.getParent() == null) {
+						if (start.getParents().get(0) == null) {
 							visualize.genInitialNode(start);
 							storeGadget(start, visualize);
 			 			}
@@ -273,16 +273,6 @@ public class Enumerate implements Serializable {
 		this.outputFile = in.next();
 		System.out.println("Specify the maximum length of the gadget chain you wish to find");
 		this.maxDepth = in.nextInt() + this.previousDepth;
-		System.out.println("Specify the search algorithm to employ (BFS/DFS)");
-		String searchType = in.next();
-		if (searchType.equalsIgnoreCase("BFS")) {
-			this.isDFS = false;
-			this.queue = new LinkedList<Gadget>();
-		} else if (searchType.equalsIgnoreCase("DFS")) {
-			this.isDFS = true;
-		} else {
-			throw new InvalidInputException("Invalid search algorithm");
-		}
 	}
 	
 	public Enumerate(int jdkVersion, Map<String, List<String>> blacklist, String[] pathsToFiles, String ... serverTemp) throws ClassNotFoundException, IOException, SQLException {
@@ -318,39 +308,19 @@ public class Enumerate implements Serializable {
 		
 		this.blacklist = blacklist;
 		endPoints = new ArrayList<>();
-		allPotentialGadgets = new ArrayList<>();
+		allPotentialGadgets = new HashSet<>();
+		queue = new LinkedList<>();
 	}
 	
 	public void continueAnalysis(Set<Integer> startIDs) {
 		if (startIDs == null) {
-			startPoints.forEach(g -> {
-				try {
-					if (isDFS) 
-						findChain(g);
-					else {
-						queue.add(g);
-					}
-				} catch (IOException | ClassNotFoundException e) {
-					e.printStackTrace();
-				}
-			});
+			queue.addAll(startPoints);
 		} else {
 			List<Gadget> filtered = startPoints.stream().filter(gadget -> startIDs.contains(gadget.getId())).collect(Collectors.toList());
-			filtered.forEach(g -> {
-				try {
-					if (isDFS) 
-						findChain(g);
-					else {
-						queue.add(g);
-					}
-				} catch (IOException | ClassNotFoundException e) {
-					e.printStackTrace();
-				}
-			}); 
+			queue.addAll(filtered); 
 		}
 		
 		try {
-			if (!isDFS)
 			findChainByBFS();
 		} catch (ClassNotFoundException | IOException e) {
 			e.printStackTrace();
@@ -361,63 +331,26 @@ public class Enumerate implements Serializable {
 		if (scanStart == null) {
 			entryPoints.forEach((k, v) -> { // account for more than one magic method per class
 				for (int i = 1; i < v.size(); i++) {
-					Map<Integer, Value> sim = new Hashtable<Integer, Value>();
 					MethodInfo mf = (MethodInfo) v.get(i);
-					if (!mf.getIsStatic()) {
-						ReferenceValue thisObject = new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE);
-						thisObject.setField();
-						sim.put(0, thisObject);
-					}
-					int argLength = mf.getParamCount();
-					for (int j = 0; j < argLength; j++) {
-						sim.put(j + 1, new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE));
-					}
-					Gadget gadget = new Gadget(k, mf, null, (byte[]) v.get(0), sim, 1);
-					try {
-						if (isDFS) 
-							findChain(gadget);
-						else {
-							queue.addLast(gadget);
-						}
-					} catch (IOException | ClassNotFoundException e) {
-						e.printStackTrace();
-					}
+					Gadget gadget = new Gadget(k.getName(), k, mf, null, (byte[]) v.get(0), mf.getUserControlledArgPos(), 1);
+					queue.addLast(gadget);
 				}
 			});
 		} else {
 			Map<Class<?>, List<Object>> filtered = entryPoints.entrySet().stream().filter(c -> scanStart.containsKey(c.getKey().getName())).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 			filtered.forEach((k, v) -> {
 				for (int i = 1; i < v.size(); i++) {
-					Map<Integer, Value> sim = new Hashtable<Integer, Value>();
 					MethodInfo mf = (MethodInfo) v.get(i);
 					String signature = mf.getName() + mf.getDesc();
 					if (scanStart.get(k.getName()).contains(signature)) {
-						if (!mf.getIsStatic()) {
-							ReferenceValue thisObject = new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE);
-							thisObject.setField();
-							sim.put(0, thisObject);
-						}
-						int argLength = mf.getParamCount();
-						for (int j = 0; j < argLength; j++) {
-							sim.put(j + 1, new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE));
-						}
-						Gadget gadget = new Gadget(k, mf, null, (byte[]) v.get(0), sim, 1);
-						try {
-							if (isDFS) 
-								findChain(gadget);
-							else {
-								queue.addLast(gadget);
-							}
-						} catch (IOException | ClassNotFoundException e) {
-							e.printStackTrace();
-						}
+						Gadget gadget = new Gadget(k.getName(), k, mf, null, (byte[]) v.get(0), mf.getUserControlledArgPos(), 1);
+						queue.addLast(gadget);
 					}
 				}
 			});
 		}
 
 		try {
-			if (!isDFS)
 			findChainByBFS();
 		} catch (ClassNotFoundException | IOException e) {
 			e.printStackTrace();
@@ -426,39 +359,33 @@ public class Enumerate implements Serializable {
 
 		
 	public void findChainByBFS() throws ClassNotFoundException, IOException {
+		ArrayList<Gadget> sinks = new ArrayList<>();
 		while (queue.size() > 0) {
+			count++;
 			Gadget gadget = queue.getFirst();
 			allPotentialGadgets.add(gadget);
 			queue.removeFirst();
-			if (gadget.getMethod() == null) {
-				System.out.println("The method " + gadget.getMethodDesc() + " does not exist in " + gadget.getClazz().getName());
-			} else if (blacklist.containsKey(gadget.getName()) || (gadget.getClazz() != null && blacklist.containsKey(gadget.getClazz().getName()))) {
+			if (blacklist.containsKey(gadget.getName()) || (gadget.getClazz() != null && blacklist.containsKey(gadget.getClazz().getName()))) {
 				String clazz;
 				if (gadget.getClazz() == null) {
 					clazz = gadget.getName();
-				} else {
+				} else 
 					clazz = gadget.getClazz().getName();
-				}
+				
 				MethodInfo method = gadget.getMethod();
-				if (blacklist.get(clazz).contains(method.getName() + ":" + method.getDesc())) {
-					PrintWriter out = new PrintWriter(new FileWriter(this.outputFile, true));
-					returnChain(gadget, out);
-					cleanUpCallTree(gadget, null);
-				}
+				if (blacklist.get(clazz).contains(method.getName() + ":" + method.getDesc())) 
+					sinks.add(gadget);
 			} else if (gadget.getClazz() == null) {
 				System.out.println("The class " + gadget.getName() + " is not found as it is not serializable ");
 			} else if (gadget.getBytes() == null) {
 				System.out.println("The class " + gadget.getClazz().getName() + " is not found hence terminated path");
 			} else if (gadget.getDepth() >= maxDepth) {
 				System.out.println("Max recursion depth reached");
-				cleanUpCallTree(gadget, null);
 				endPoints.add(gadget);
 			} else {
-				Collection<MethodInfo> next = gadget.InspectMethod(magicMethods);
-				
-				if (next.size() == 0) {
+				Collection<MethodInfo> next = gadget.InspectMethod(magicMethods);	
+				if (next.size() == 0) 
 					System.out.println("No next method found");
-				}
 				
 				for (MethodInfo m : next) {
 					List<Gadget> children = gadget.findChildren(m, hierarchy);
@@ -468,91 +395,72 @@ public class Enumerate implements Serializable {
 				}
 			}
 		}
-	}
-	
-	public void findChain(Gadget gadget) throws ClassNotFoundException, IOException { // depth first search
-		allPotentialGadgets.add(gadget);
-
-		if (gadget.getMethod() == null) {
-			System.out.println("The method " + gadget.getMethodDesc() + " does not exist in " + gadget.getClazz().getName());
-			return;
+		
+		System.out.println(Gadget.allGadgets.size() + " " + sinks.size());
+		//output all chains to outputFile
+		try (PrintWriter out = new PrintWriter(new FileWriter(this.outputFile, true))) {
+			sinks.forEach(sink -> {
+				LinkedList<LinkedList<Gadget>> subChains = new LinkedList<>();
+				LinkedList<Gadget> subChain = new LinkedList<Gadget>();
+				subChain.addFirst(sink);
+				subChains.addFirst(subChain);
+				try {
+					returnChain(out, subChains);
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			});
 		}
 		
-		if (blacklist.containsKey(gadget.getName()) || (gadget.getClazz() != null && blacklist.containsKey(gadget.getClazz().getName()))) {
-			String clazz;
-			if (gadget.getClazz() == null) {
-				clazz = gadget.getName();
+		endPoints.forEach(end -> {
+			cleanUpCallTree(end, null);
+		});
+	}
+	
+	public void returnChain(PrintWriter out, LinkedList<LinkedList<Gadget>> subChains) throws IOException {
+		while (!subChains.isEmpty()) {
+			LinkedList<Gadget> subChain = subChains.getLast();
+			List<Gadget> parents = subChain.getFirst().getParents();
+			if (parents.get(0) == null) { //reached entry point can print chain
+				if (isContinued)
+					out.println("... Please refer to neo4j database for the full chain");
+				subChain.forEach(g -> {
+					out.println(g.getClazz().getName() + ":" + g.getMethod().getName());
+				});
+				out.println();
+				subChains.removeLast();
+			} else if (subChain.size() >= 7) {
+				subChains.removeLast();
 			} else {
-				clazz = gadget.getClazz().getName();
-			}
-			MethodInfo method = gadget.getMethod();
-			if (blacklist.get(clazz).contains(method.getName() + ":" + method.getDesc())) {
-				PrintWriter out = new PrintWriter(new FileWriter(this.outputFile, true));
-				returnChain(gadget, out);
-				cleanUpCallTree(gadget, null);
-				return; // chain found parent reference to show the chain
-			}
-		}
-		
-		if (gadget.getClazz() == null) {
-			System.out.println("The class " + gadget.getName() + " is not found as it is not serializable ");
-			return;
-		}
-		
-		if (gadget.getBytes() == null) {
-			System.out.println("The class " + gadget.getClazz().getName() + " is not found hence terminated path");
-			return; // when class is not included in search space
-		}
-
-		if (gadget.getDepth() >= maxDepth) {
-			System.out.println("Max recursion depth reached");
-			cleanUpCallTree(gadget, null);
-			endPoints.add(gadget);
-			return; // prevent excessive recursion
-		}
-		
-		Collection<MethodInfo> next = gadget.InspectMethod(magicMethods);
-		
-		if (next.size() == 0) {
-			System.out.println("No next method found");
-			return;
-		} // no next method found to be invoked
-		
-		for (MethodInfo m : next) {
-			List<Gadget> children = gadget.findChildren(m, hierarchy);
-			for (Gadget child : children) {
-				findChain(child);
+				if (parents.size() == 1) {		
+					subChain.addFirst(parents.get(0));
+				} else {
+					for (int i = 1; i < parents.size(); i++) {
+						Gadget parent = parents.get(i);
+						if (!subChain.contains(parent)) {
+							LinkedList<Gadget> nextSubChains = new LinkedList<>(subChain);
+							nextSubChains.addFirst(parent);
+							subChains.addLast(nextSubChains);
+						}	
+					}
+					subChain.addFirst(parents.get(0));
+				}
 			}
 		}
 	}
 	
-	// write the result to a file
-	public void returnChain(Gadget gadget, PrintWriter out) throws IOException {
-		String classname = gadget.getClazz().getName(); // inverse chain printed
-		String methodname = gadget.getMethod().getName();
-		out.println(classname + ":" + methodname);
-		Gadget parent = gadget.getParent();
-		if (parent == null) {
-			if (isContinued) 
-				out.println("Please refer to neo4j db for entire chain construct");
-			out.println("End of chain");
-			out.flush();
-			out.close();
-			return;
-		}
-		returnChain(parent, out);
-	}
-	
-	public void cleanUpCallTree(Gadget gadget, Gadget revisedChild) { // remove all gadgets that cannot potentially or is a already a part of a gadget chain
+	// remove all gadgets that cannot potentially or is a already a part of a gadget chain
+	public void cleanUpCallTree(Gadget gadget, Gadget revisedChild) { 
 		gadget.addRevisedChild(revisedChild);
-		if (gadget.getVisitStatus()) {
+		if (gadget.getVisitStatus()) 
 			return;
-		}
 		gadget.visited();
-		Gadget parent = gadget.getParent();
-		if (parent == null)
+		List<Gadget> parents = gadget.getParents();
+		if (parents.get(0) == null)
 			return;
-		cleanUpCallTree(parent, gadget);
+		for (Gadget parent : parents) {
+			cleanUpCallTree(parent, gadget);
+		}
 	}
 	
 	// method to enumerate all valid paths referencing allPotentialGadgets
@@ -573,7 +481,7 @@ public class Enumerate implements Serializable {
 		this.startPoints = this.endPoints;
 		this.endPoints = new ArrayList<>();
 		this.previousDepth = this.maxDepth;
-		this.allPotentialGadgets = new ArrayList<>();
+		this.allPotentialGadgets = new HashSet<>();
 	}
 	
 	private void genHierarchy(ClassLoader loader) {

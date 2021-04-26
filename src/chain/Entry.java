@@ -39,13 +39,12 @@ public class Entry {
 						thisObject.setField();
 						sim.put(0, thisObject);
 					}
-					MethodInfo mf = new MethodInfo(methodName, MethodInfo.convertDescriptor(method), isStatic, argLength);  
-					Gadget possibleEntry = new Gadget(c, mf, null, clazz.getValue(), sim, 1);
+					MethodInfo mf = new MethodInfo(methodName, MethodInfo.convertDescriptor(method), isStatic, sim);  
+					Gadget possibleEntry = new Gadget(c.getName(), c, mf, null, clazz.getValue(), sim, 1);
 					Collection<MethodInfo> next = possibleEntry.InspectMethod(new HashMap<>());
-
-					if (next.size() > 0) {
-						info.add(mf);
-					} //magic methods that actually invoke further method
+					//magic methods that actually invoke further method
+					if (next.size() > 0) 
+						info.add(mf);	 
 				}
 			}
 			if (!info.isEmpty()) {

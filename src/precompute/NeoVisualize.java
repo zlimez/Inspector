@@ -84,7 +84,7 @@ public class NeoVisualize implements AutoCloseable {
 		Map<String, Object> params = new HashMap<>();
 		gadget.setId(id);
 		params.put("id", id++);
-		String classname = gadget.getClazz().getName();;
+		String classname = gadget.getClassname();
 		params.put("class", classname);
 		MethodInfo method = gadget.getMethod();
 		String methodDesc = method.getName() + ":" + method.getDesc();

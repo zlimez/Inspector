@@ -22,54 +22,54 @@ import userFields.RenderStream;
 
 public class Gadget implements Serializable {
 	private static final long serialVersionUID = 1L;
-	private transient Gadget parent;
+	protected static Map<String, Gadget> allGadgets = new HashMap<>();
+	private transient List<Gadget> parents;
 	private transient Class<?> clazz;
 	private MethodInfo method;
 	private List<Gadget> children;
 	private byte[] byteContent;
 	private Map<Integer, Value> userControlledArgPos;
 	private int depth;
-	
-	private int id; // for reference during neo4j 
-	private List<Gadget> revisedChildren = new ArrayList<Gadget>(); // for gadgets within a potential or valid gadget where some child path are invalid and should be removed to facilitate iterative analysis from end points
+	// for reference during neo4j 
+	private int id; 
+	// for gadgets within a potential or valid gadget where some child path are invalid and should be removed to facilitate iterative analysis from end points
+	private List<Gadget> revisedChildren = new ArrayList<Gadget>(); 
 	private boolean visited = false;
 	
-	public String classname; // used only when class cannot be found correspond to 2nd constructor
-	public String methodDesc; // used only when method cannot be found correspond to third constructor
+	protected String classname; // used only when class cannot be found correspond to 2nd constructor
 	
-	public Gadget(Class<?> type, MethodInfo m, Gadget parent, byte[] b, Map<Integer, Value> userControlledArgPos, int depth) {
+	public Gadget(String classname, Class<?> type, MethodInfo m, Gadget parent, byte[] b, Map<Integer, Value> userControlledArgPos, int depth) {
+		this.classname = classname;
 		this.clazz = type;
 		this.method = m;
-		this.parent = parent;
+		this.parents = new ArrayList<>();
+		this.parents.add(parent);
 		this.children = new ArrayList<>();
 		this.byteContent = b;
 		this.userControlledArgPos = userControlledArgPos;
 		this.depth = depth;
+		
+		allGadgets.put(this.genKey(), this);
 	}
 	
 	public Gadget(String classname, MethodInfo m, Gadget parent, int depth) {
 		this.classname = classname;
 		this.method = m;
-		this.parent = parent;
+		this.parents = new ArrayList<>();
+		this.parents.add(parent);
 		this.depth = depth;
+		
+		allGadgets.put(this.genKey(), this);
 	} 
-	
-	public Gadget(Class<?> type, String methodDesc, Gadget parent, int depth) {
-		this.clazz = type;
-		this.methodDesc = methodDesc;
-		this.parent = parent;
-		this.depth = depth;
-	}
 	
 	public Collection<MethodInfo> InspectMethod(Map<String, Set<String>> magicMethods) {
 		ClassReader cr = new ClassReader(byteContent);
-		String owner = cr.getClassName();
-		ClassWriter cw = new ClassWriter(cr, 0);
-		String cName = owner.replaceAll("/", "\\."); 
-		System.out.println(cName + ":" + method.getName());
+		ClassWriter cw = new ClassWriter(cr, 0); 
+		String owner = classname.replaceAll("\\.", "/");
+		System.out.println(classname + ":" + method.getName() + userControlledArgPos.keySet());
 		if (method.getIsField()) {
-			if (magicMethods.containsKey(cName) && !magicMethods.get(cName).contains(method.getName() + method.getDesc())) {
-				RenderStream rs = new RenderStream(cw, owner, magicMethods.get(cName));
+			if (magicMethods.containsKey(classname) && !magicMethods.get(classname).contains(method.getName() + method.getDesc())) {
+				RenderStream rs = new RenderStream(cw, owner, magicMethods.get(classname));
 				cr.accept(rs, 0);
 				RenderMethod rm = new RenderMethod(cw, owner, method.getName(), method.getDesc(), userControlledArgPos, rs.getUserControlledFields());
 				cr.accept(rm, 0);
@@ -101,9 +101,8 @@ public class Gadget implements Serializable {
 	
 	// result of Inspect method should be passed as argument to findChildrenComponents
 	public List<Gadget> findChildren(MethodInfo method, Map<String, Map<Class<?>, byte[]>> hierarchy) throws ClassNotFoundException {
-		List<Gadget> childrenForThisMethod = new ArrayList<Gadget>();
-		String owner = method.getOwner(); 
-		owner = owner.replaceAll("/", "\\.");
+		List<Gadget> childrenForThisMethod = new ArrayList<Gadget>(); 
+		String owner = method.getOwner().replaceAll("/", "\\.");
 		String methodName = method.getName();
 		String methodDesc = method.getDesc();
 		Map<Class<?>, byte[]> subtypes = new HashMap<>();
@@ -116,15 +115,13 @@ public class Gadget implements Serializable {
 				Method[] methods = last.getDeclaredMethods();
 				for (Method m : methods) {
 					if (m.getName().equals(methodName) && methodDesc.equals(MethodInfo.convertDescriptor(m))) {
-						Gadget finale = new Gadget(last, method, this, null, method.getUserControlledArgPos(), depth + 1);
+						Gadget finale = new Gadget(owner, last, method, this, null, method.getUserControlledArgPos(), depth + 1);
 						childrenForThisMethod.add(finale);
 						children.add(finale);
 						return childrenForThisMethod;
 					}
 				}
-				Gadget noSuchMethod = new Gadget(last, methodName + ":" + methodDesc, this, depth + 1);
-				childrenForThisMethod.add(noSuchMethod); 
-				return childrenForThisMethod;
+				System.out.println(methodName + methodDesc + " does not exist in " + owner);
 			} catch (ClassNotFoundException e) {
 				e.printStackTrace();
 			} 
@@ -132,15 +129,22 @@ public class Gadget implements Serializable {
 			childrenForThisMethod.add(likelyDeadEnd);
 			children.add(likelyDeadEnd);
 			return childrenForThisMethod;
-		} // cases where the class the method belongs to is not found as it is not serializable but could be a blacklisted class:method
+		} // cases where the class the method belongs to is not found as it is not serializable but could be a blacklisted class:method	
 		
+		String methodStr = method.toString();
 		subtypes.forEach((k, v) -> {
+			String key = k.getName() + methodStr;
 			Method[] allMethods = k.getDeclaredMethods(); 
 			for (int i = 0; i < allMethods.length; i++) {
 				if (methodName.equals(allMethods[i].getName()) && methodDesc.equals(MethodInfo.convertDescriptor(allMethods[i]))) {
-					Gadget nextComp = new Gadget(k, method, this, v, method.getUserControlledArgPos(), depth + 1); // later should include classes who inherited the method to show all gadget chain possibilities
-					if (!checkIfRepeated(nextComp, this))
+					Gadget nextComp;
+					if (allGadgets.containsKey(key)) {					
+						nextComp = allGadgets.get(key);
+						nextComp.parents.add(this);
+					} else {
+						nextComp = new Gadget(k.getName(), k, method, this, v, method.getUserControlledArgPos(), depth + 1); // later should include classes who inherited the method to show all gadget chain possibilities
 						childrenForThisMethod.add(nextComp);
+					}
 				}
 			}
 		});
@@ -148,18 +152,8 @@ public class Gadget implements Serializable {
 		return childrenForThisMethod;
 	}
 	
-	public boolean checkIfRepeated(Gadget gadget, Gadget parent) {
-		if (parent.equals(gadget)) 
-			return true;
-		if (parent.getParent() == null) 
-			return false;
-		Gadget grandparent = parent.getParent();
-		boolean result = checkIfRepeated(gadget, grandparent);
-		return result;
-	}
-	
-	public Gadget getParent() {
-		return parent;
+	public List<Gadget> getParents() {
+		return parents;
 	}
 	
 	public void setClazz(ClassLoader loader) throws ClassNotFoundException {
@@ -171,6 +165,10 @@ public class Gadget implements Serializable {
 	
 	public Class<?> getClazz() {
 		return clazz;
+	}
+	
+	public String getClassname() {
+		return classname;
 	}
 	
 	public MethodInfo getMethod() {
@@ -187,10 +185,6 @@ public class Gadget implements Serializable {
 	
 	public String getName() {
 		return classname;
-	}
-	
-	public String getMethodDesc() {
-		return methodDesc;
 	}
 	
 	public boolean getVisitStatus() {
@@ -230,7 +224,6 @@ public class Gadget implements Serializable {
 		result = prime * result + Arrays.hashCode(byteContent);
 		result = prime * result + ((classname == null) ? 0 : classname.hashCode());
 		result = prime * result + ((method == null) ? 0 : method.hashCode());
-		result = prime * result + ((methodDesc == null) ? 0 : methodDesc.hashCode());
 		return result;
 	}
 
@@ -255,11 +248,10 @@ public class Gadget implements Serializable {
 				return false;
 		} else if (!method.equals(other.method))
 			return false;
-		if (methodDesc == null) {
-			if (other.methodDesc != null)
-				return false;
-		} else if (!methodDesc.equals(other.methodDesc))
-			return false;
 		return true;
+	}
+
+	public String genKey() {
+		return classname + method.toString();
 	}
 }

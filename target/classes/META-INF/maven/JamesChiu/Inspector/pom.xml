@@ -49,5 +49,6 @@
 		<artifactId>neo4j-java-driver</artifactId>
 		<version>4.2.0</version>
 	</dependency>
+	<!-- https://mvnrepository.com/artifact/org.springframework/spring-core -->
   </dependencies>
 </project>

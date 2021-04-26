@@ -25,7 +25,6 @@ public class MethodInfo implements Serializable {
 	private String desc;
 	private boolean isStatic; // determines do i need to parse the constructor of the next interesting method
 	private Map<Integer, Value> userControlledArgPos;
-	private transient int parameterCount;
 	private boolean isField; // if the caller is a field in the class where the method is called
 	
 	public MethodInfo(String owner, String name, boolean isStatic, Map<Integer, Value> userControlledArgPos, String desc, boolean isField) {
@@ -37,12 +36,12 @@ public class MethodInfo implements Serializable {
 		this.isField = isField;
 	}
 	
-	public MethodInfo(String name, String desc, boolean isStatic, int parameterCount) { //for entry point only
+	public MethodInfo(String name, String desc, boolean isStatic, Map<Integer, Value> userControlledArgPos) { //for entry point only
 		this.name = name;
 		this.desc = desc;
 		this.isField = true;
 		this.isStatic = isStatic;
-		this.parameterCount = parameterCount;
+		this.userControlledArgPos = userControlledArgPos;
 	}
 	
 	public ReferenceValue limitedConstructorInfluence() { // when the object the method is invoked on is a local var which is tainted when initialized
@@ -69,10 +68,6 @@ public class MethodInfo implements Serializable {
 	
 	public String getDesc() {
 		return desc;
-	}
-	
-	public int getParamCount() {
-		return parameterCount;
 	}
 	
 	public boolean getIsField() {
@@ -214,6 +209,12 @@ public class MethodInfo implements Serializable {
 		} else if (!userControlledArgPos.equals(other.userControlledArgPos))
 			return false;
 		return true;
+	}
+	
+	@Override
+	public String toString() {
+		return "MethodInfo [owner=" + owner + ", name=" + name + ", desc=" + desc + ", isStatic=" + isStatic
+				+ ", isField=" + isField + ", userControlledArgPos=" + userControlledArgPos + "]";
 	}
 
 	public static int countArgs(String desc) {
