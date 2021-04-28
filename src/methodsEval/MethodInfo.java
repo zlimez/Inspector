@@ -26,20 +26,23 @@ public class MethodInfo implements Serializable {
 	private boolean isStatic; // determines do i need to parse the constructor of the next interesting method
 	private Map<Integer, Value> userControlledArgPos;
 	private boolean isField; // if the caller is a field in the class where the method is called
+	private boolean fixedType;
 	
-	public MethodInfo(String owner, String name, boolean isStatic, Map<Integer, Value> userControlledArgPos, String desc, boolean isField) {
+	public MethodInfo(String owner, String name, boolean isStatic, Map<Integer, Value> userControlledArgPos, String desc, boolean isField, boolean fixedType) {
 		this.owner = owner;
 		this.name = name;
 		this.isStatic = isStatic;
 		this.userControlledArgPos = userControlledArgPos;
 		this.desc = desc;
 		this.isField = isField;
+		this.fixedType = fixedType;
 	}
 	
 	public MethodInfo(String name, String desc, boolean isStatic, Map<Integer, Value> userControlledArgPos) { //for entry point only
 		this.name = name;
 		this.desc = desc;
 		this.isField = true;
+		this.fixedType = false;
 		this.isStatic = isStatic;
 		this.userControlledArgPos = userControlledArgPos;
 	}
@@ -72,6 +75,10 @@ public class MethodInfo implements Serializable {
 	
 	public boolean getIsField() {
 		return isField;
+	}
+	
+	public boolean getFixedType() {
+		return fixedType;
 	}
 	
 	// Could implement better comparison between two identical tainted methods
@@ -169,6 +176,7 @@ public class MethodInfo implements Serializable {
 		result = prime * result + ((desc == null) ? 0 : desc.hashCode());
 		result = prime * result + (isField ? 1231 : 1237);
 		result = prime * result + (isStatic ? 1231 : 1237);
+		result = prime * result + (fixedType ? 1231 : 1237);
 		result = prime * result + ((name == null) ? 0 : name.hashCode());
 		result = prime * result + ((owner == null) ? 0 : owner.hashCode());
 		result = prime * result + ((userControlledArgPos == null) ? 0 : userControlledArgPos.hashCode());
@@ -193,6 +201,8 @@ public class MethodInfo implements Serializable {
 			return false;
 		if (isStatic != other.isStatic)
 			return false;
+		if (fixedType != other.fixedType)
+			return false;
 		if (name == null) {
 			if (other.name != null)
 				return false;
@@ -214,7 +224,7 @@ public class MethodInfo implements Serializable {
 	@Override
 	public String toString() {
 		return "MethodInfo [owner=" + owner + ", name=" + name + ", desc=" + desc + ", isStatic=" + isStatic
-				+ ", isField=" + isField + ", userControlledArgPos=" + userControlledArgPos + "]";
+				+ ", isField=" + isField + ", fixedType=" + fixedType + ", userControlledArgPos=" + userControlledArgPos + "]";
 	}
 
 	public static int countArgs(String desc) {

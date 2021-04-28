@@ -39,7 +39,7 @@ import precompute.StoreHierarchy;
 
 public class Enumerate implements Serializable {
 	private static final long serialVersionUID = 1L;
-	static int count = 0;
+//	static int count = 0;
 	
 	private URL[] urls;
 	private transient Map<Class<?>, byte[]> serialClazzes;
@@ -56,8 +56,8 @@ public class Enumerate implements Serializable {
 	private transient Map<String, List<String>> scanStart;
 	private transient Set<Gadget> allPotentialGadgets;
 	
-	private transient ArrayList<Gadget> startPoints;
-	private ArrayList<Gadget> endPoints;
+	private transient Set<Gadget> startPoints;
+	private Set<Gadget> endPoints;
 	
 	private Map<String, Set<byte[]>> inithierarchy; //used to reinitialize hierarchy when analysis is continued 
 	
@@ -65,10 +65,10 @@ public class Enumerate implements Serializable {
 		try (Scanner in = new Scanner(System.in)) {
 //			System.out.println("Are you starting a new analysis or do you wish to continue from one of the end points reached in previous analysis? (new/continue)?");
 //			String isNew = in.next();
-			String isNew = "new";
+			String isNew = "continue";
 //			System.out.println("Do you wish to store the end point gadget nodes of this analysis for further analysis later? (Y/N)");
 //			String resp = in.next();
-			boolean isStore = false;
+			boolean isStore = true;
 //			if (resp.equalsIgnoreCase("Y")) {
 //				isStore = true;
 //			} else if (resp.equalsIgnoreCase("N")) {
@@ -96,7 +96,7 @@ public class Enumerate implements Serializable {
 //				int jdkVersion = in.nextInt();
 				
 				int jdkVersion = 11;
-				String[] pathsToFiles = new String[] {"/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/spring-core-5.3.6.jar", "/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/spring-jcl-5.3.6.jar"};
+				String[] pathsToFiles = new String[] {"/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/commons-collections4-4.0.jar"};
 				
 				DbConnector.initBlacklist(jdkVersion); 
 				if (pathsToFiles[0].endsWith(".war")) {
@@ -172,30 +172,9 @@ public class Enumerate implements Serializable {
 				out.close();
 				target.initAllEntry();
 				target.allPotentialGadgets.removeIf(g -> !g.getVisitStatus());
-//				System.out.println(target.allPotentialGadgets.size());
+				System.out.println(target.allPotentialGadgets.size());
 //				System.out.println(count);
 				in.useDelimiter("\\n");
-				System.out.println("Assuming you have neo4j desktop installed, please provide the port your DBMS is running on, your username and password in this format bolt://localhost:{portNum}, {username}, {password}");
-				String dbInfo = in.next();
-				Scanner parse = new Scanner(dbInfo);
-				parse.useDelimiter("\\s*\\,\\s*");
-				String port = parse.next();
-				String user = parse.next();
-				String pw = parse.next();
-				parse.close();
-				in.reset();
-				try (NeoVisualize visualize = new NeoVisualize(port, user, pw)) {
-					visualize.indexGraph();
-					for (Gadget start : target.allPotentialGadgets) {
-						if (start.getParents().get(0) == null) {
-							visualize.genInitialNode(start);
-							storeGadget(start, visualize);
-			 			}
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-				
 			} else if (isNew.equalsIgnoreCase("continue")) {
 				System.out.println("Specify the path to the file where the results of previous analysis is stored");
 				String location = in.next();
@@ -218,7 +197,7 @@ public class Enumerate implements Serializable {
 				String choice = in.next();
 				if (choice.equalsIgnoreCase("Y")) {
 					in.useDelimiter("\\n");
-					System.out.println("With reference to the id of the gadget nodes stored in the neo4j datebase, list out the id of the end point gadget nodes you wish to continue the analysis from (eg. 1, 3, 99)");
+					System.out.println("With reference to the id of the gadget nodes stored in the neo4j database, list out the id of the end point gadget nodes you wish to continue the analysis from (eg. 1, 3, 99)");
 					Set<Integer> startIDs = new HashSet<>();
 					String ids = in.next();
 					Scanner getInt = new Scanner(ids);
@@ -235,27 +214,31 @@ public class Enumerate implements Serializable {
 					throw new InvalidInputException("Invalid input");
 				}
 				in.useDelimiter("\\n");
-				System.out.println("Assuming you have neo4j desktop installed, please provide the port your DBMS is running on, your username and password in this format bolt://localhost:{portNum}, {username}, {password}");
-				String dbInfo = in.next();
-				Scanner parse = new Scanner(dbInfo);
-				parse.useDelimiter("\\s*\\,\\s*");
-				String port = parse.next();
-				String user = parse.next();
-				String pw = parse.next();
-				parse.close();
-				in.reset();
-				try (NeoVisualize visualize = new NeoVisualize(port, user, pw)) {
-					visualize.initializeID();
-					for (Gadget start : target.allPotentialGadgets) {
-						if (start.getDepth() == target.previousDepth) {
-							storeGadget(start, visualize);
-			 			}
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
+				
 			} else {
 				throw new InvalidInputException("Invalid input");
+			}
+			
+//			int maxRel = 0;
+//			for (Gadget node : target.allPotentialGadgets) {
+//				if (node.getRevisedChildren().size() > maxRel)
+//					maxRel = node.getRevisedChildren().size();
+//			}
+//			System.out.println(maxRel);
+			System.out.println("Assuming you have neo4j desktop installed, please provide the port your DBMS is running on, your username and password in this format bolt://localhost:{portNum}, {username}, {password}");
+			String dbInfo = in.next();
+			Scanner parse = new Scanner(dbInfo);
+			parse.useDelimiter("\\s*\\,\\s*");
+			String port = parse.next();
+			String user = parse.next();
+			String pw = parse.next();
+			parse.close();
+			in.reset();
+			try (NeoVisualize visualize = new NeoVisualize(port, user, pw, target.allPotentialGadgets, target.maxDepth, target.isContinued, target.startPoints)) {
+				visualize.initDB();
+				visualize.genGraph();
+			} catch (Exception e) {
+				e.printStackTrace();
 			}
 			
 			if (isStore) {
@@ -307,7 +290,7 @@ public class Enumerate implements Serializable {
 		});
 		
 		this.blacklist = blacklist;
-		endPoints = new ArrayList<>();
+		endPoints = new HashSet<>();
 		allPotentialGadgets = new HashSet<>();
 		queue = new LinkedList<>();
 	}
@@ -316,8 +299,11 @@ public class Enumerate implements Serializable {
 		if (startIDs == null) {
 			queue.addAll(startPoints);
 		} else {
-			List<Gadget> filtered = startPoints.stream().filter(gadget -> startIDs.contains(gadget.getId())).collect(Collectors.toList());
-			queue.addAll(filtered); 
+			startPoints = startPoints.stream().filter(gadget -> startIDs.contains(gadget.getId())).collect(Collectors.toSet());
+			queue.addAll(startPoints); 
+			startPoints.forEach(s -> {
+				Gadget.allGadgets.put(s.genKey(), s);
+			});
 		}
 		
 		try {
@@ -359,12 +345,11 @@ public class Enumerate implements Serializable {
 
 		
 	public void findChainByBFS() throws ClassNotFoundException, IOException {
-		ArrayList<Gadget> sinks = new ArrayList<>();
-		while (queue.size() > 0) {
-			count++;
-			Gadget gadget = queue.getFirst();
+		Set<Gadget> sinks = new HashSet<>();
+		while (!queue.isEmpty()) {
+//			count++;
+			Gadget gadget = queue.pollFirst();
 			allPotentialGadgets.add(gadget);
-			queue.removeFirst();
 			if (blacklist.containsKey(gadget.getName()) || (gadget.getClazz() != null && blacklist.containsKey(gadget.getClazz().getName()))) {
 				String clazz;
 				if (gadget.getClazz() == null) {
@@ -373,8 +358,10 @@ public class Enumerate implements Serializable {
 					clazz = gadget.getClazz().getName();
 				
 				MethodInfo method = gadget.getMethod();
-				if (blacklist.get(clazz).contains(method.getName() + ":" + method.getDesc())) 
+				if (blacklist.get(clazz).contains(method.getName() + ":" + method.getDesc())) {
 					sinks.add(gadget);
+					gadget.setIsSink();
+				}
 			} else if (gadget.getClazz() == null) {
 				System.out.println("The class " + gadget.getName() + " is not found as it is not serializable ");
 			} else if (gadget.getBytes() == null) {
@@ -400,6 +387,7 @@ public class Enumerate implements Serializable {
 		//output all chains to outputFile
 		try (PrintWriter out = new PrintWriter(new FileWriter(this.outputFile, true))) {
 			sinks.forEach(sink -> {
+				cleanUpCallTree(sink, null);
 				LinkedList<LinkedList<Gadget>> subChains = new LinkedList<>();
 				LinkedList<Gadget> subChain = new LinkedList<Gadget>();
 				subChain.addFirst(sink);
@@ -456,32 +444,20 @@ public class Enumerate implements Serializable {
 			return;
 		gadget.visited();
 		List<Gadget> parents = gadget.getParents();
-		if (parents.get(0) == null)
+		if (parents == null || parents.isEmpty())
 			return;
 		for (Gadget parent : parents) {
 			cleanUpCallTree(parent, gadget);
 		}
 	}
 	
-	// method to enumerate all valid paths referencing allPotentialGadgets
-	public static void storeGadget(Gadget parent, NeoVisualize visualize) {
-		List<Gadget> revisedChildren = parent.getRevisedChildren();
-		if (revisedChildren.isEmpty()) {
-			return;
-		}
-		visualize.genCallGraphFromThisNode(parent);
-
-		for (Gadget child : revisedChildren) {
-			storeGadget(child, visualize);
-		}
-	}
-	
 	private void readObject(ObjectInputStream ois) throws IOException, ClassNotFoundException {
 		ois.defaultReadObject();
 		this.startPoints = this.endPoints;
-		this.endPoints = new ArrayList<>();
+		this.endPoints = new HashSet<>();
 		this.previousDepth = this.maxDepth;
 		this.allPotentialGadgets = new HashSet<>();
+		this.queue = new LinkedList<>();
 	}
 	
 	private void genHierarchy(ClassLoader loader) {

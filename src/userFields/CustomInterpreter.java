@@ -669,8 +669,9 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 							selected = new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE);
 							selected.setField();
 							return selected;
-						} else if (arr.constructorDesc != null) {
+						} else if (arr.actualType != null) {
 							selected = new ReferenceValue(UserValues.USERDERIVED_REFERENCE);
+							selected.actualType = arr.actualType;
 							selected.constructorDesc = arr.constructorDesc;
 							selected.initControlledPos = arr.initControlledPos;
 							return selected;
@@ -696,8 +697,9 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 								selected = new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE);
 								selected.setField();
 								return selected;
-							} else if (multiArr.constructorDesc != null) {
+							} else if (multiArr.actualType != null) {
 								selected = new ReferenceValue(UserValues.USERDERIVED_REFERENCE);
+								selected.actualType = multiArr.actualType;
 								selected.constructorDesc = multiArr.constructorDesc;
 								selected.initControlledPos = multiArr.initControlledPos;
 								return selected;
@@ -886,10 +888,12 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 					ObjectVal element = (ObjectVal) value3;
 					if (element.isField) {
 						arr.isField = true;
+						arr.actualType = null;
 						arr.constructorDesc = null;
 						arr.initControlledPos = null;
 					} else if (element.constructorDesc != null) {
 						if (arr.initControlledPos == null || element.initControlledPos.size() > arr.initControlledPos.size()) {
+							arr.actualType = element.actualType;
 							arr.constructorDesc = element.constructorDesc;
 							arr.initControlledPos = element.initControlledPos;
 						}
@@ -905,10 +909,10 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 					throw new AnalyzerException(insn, "Array type mismatch with element type");
 				if (arr.isField && !multiArr.isField) {
 					MultiDArray.setEntireContent(multiArr, 2, null);
-					MultiDArray.setAllInitDescAndPos(multiArr, null, null);
+					MultiDArray.setAllInitDescAndPos(multiArr, null, null, null);
 				} else if (multiArr.isField == false && multiArr.type.equals(Type.getObjectType("java/lang/Object"))) {
 					if (arr.constructorDesc != null)
-						MultiDArray.setAllInitDescAndPos(multiArr, arr.constructorDesc, arr.initControlledPos);
+						MultiDArray.setAllInitDescAndPos(multiArr, arr.actualType, arr.constructorDesc, arr.initControlledPos);
 				}				
 			} else if (value3 instanceof MultiDArray) {
 				MultiDArray smMultiArr = (MultiDArray) value3;
@@ -917,10 +921,10 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 					throw new AnalyzerException(insn, "Array type mismatch with element type");
 				if (smMultiArr.isField && !multiArr.isField) {
 					MultiDArray.setEntireContent(multiArr, 2, null);
-					MultiDArray.setAllInitDescAndPos(multiArr, null, null);
+					MultiDArray.setAllInitDescAndPos(multiArr, null, null, null);
 				} else if (multiArr.isField == false && multiArr.type.equals(Type.getObjectType("java/lang/Object"))) {
 					if (smMultiArr.constructorDesc != null)
-						MultiDArray.setAllInitDescAndPos(multiArr, smMultiArr.constructorDesc, smMultiArr.initControlledPos);
+						MultiDArray.setAllInitDescAndPos(multiArr, smMultiArr.actualType, smMultiArr.constructorDesc, smMultiArr.initControlledPos);
 				}
 			} else {
 				if (value3 instanceof UserValues) {
@@ -935,9 +939,9 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 					ReferenceValue element = (ReferenceValue) value3;
 					if (element.isField) {
 						MultiDArray.setEntireContent(multiArr, 2, null);
-						MultiDArray.setAllInitDescAndPos(multiArr, null, null);
+						MultiDArray.setAllInitDescAndPos(multiArr, null, null, null);
 					} else if (element.constructorDesc != null) 
-						MultiDArray.setAllInitDescAndPos(multiArr, element.constructorDesc, element.initControlledPos);		
+						MultiDArray.setAllInitDescAndPos(multiArr, element.actualType, element.constructorDesc, element.initControlledPos);		
 				}
 			}
 		} else {
@@ -954,17 +958,18 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 		if (insn instanceof MethodInsnNode) {
 			int opcode = insn.getOpcode();
 			MethodInsnNode method = (MethodInsnNode) insn;
+			String methodOwner = method.owner;
 			String methodName = method.name;
 			String methodDesc = method.desc;
 			Map<Integer, Value> map = new Hashtable<>(); 
 			boolean isStatic = false;
 			boolean isField = false;
+			boolean fixedType = false;
 			boolean notAnalyzable = false; 
 			MethodInfo mf;
 
-			if (opcode == INVOKESTATIC) {
+			if (opcode == INVOKESTATIC) 
 				isStatic = true;
-			}
 
 			int i = 0;
 			while (i < values.size()) {
@@ -991,19 +996,22 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 						ReferenceValue ref = (ReferenceValue) values.get(0); // newRef reset isField to false, assumes 
 						if (ref.isField) {
 							isField = true;
-							if (methodName.startsWith("set") && values.size() > map.size()) { // some args in the setter method are not tainted reducing userinfluence on ref
+							if (methodName.startsWith("set") && values.size() > map.size()) // some args in the setter method are not tainted reducing userinfluence on ref
 								ref.value = UserValues.USERDERIVED_REFERENCE; // extra check to see if all args are userinfluenced
-							}
-						} else if (ref.constructorDesc == null) {
+						} else if (ref.actualType == null) {
 							// Object who are tainted from sources other than user input and constructors (eg. method return values) as for now cannot be meaningfully analyzed hence removed
 							// Might cause undertainting alternative is assume all fields in a USERDERIVED object is USERDERIVED as well 
 							map.remove(0); 			
 							if (map.isEmpty())
 								notAnalyzable = true;
-						} 											 		
+						} else {
+							fixedType = true;
+							methodOwner = ref.actualType;
+						}
 					} else if (values.get(0) instanceof ReferenceValue) {
 						ReferenceValue ref = (ReferenceValue) values.get(0);
 						if (opcode == INVOKESPECIAL && methodName.equals("<init>")) {  
+							ref.actualType = methodOwner;
 							ref.constructorDesc = methodDesc;
 							ref.initControlledPos = map;					 
 							ref.value = UserValues.USERDERIVED_REFERENCE; 	 // if init takes tainted args then the resulting object is tainted
@@ -1014,8 +1022,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 					}
 				}
 
-				String methodOwner = method.owner;
-				mf = new MethodInfo(methodOwner, methodName, isStatic, map, methodDesc, isField);
+				mf = new MethodInfo(methodOwner, methodName, isStatic, map, methodDesc, isField, fixedType);
 				// during magic method inspection io methods are not added to the list
 				if (isMagicMethod && MethodInfo.checkIsInputStream(mf)) {
 					return ioReturnValue(returnType);
@@ -1180,6 +1187,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			if (this.isField) {
 				copy.isField = isField;
 			} else if (constructorDesc != null) {
+				copy.actualType = actualType;
 				copy.constructorDesc = constructorDesc;
 				copy.initControlledPos = initControlledPos;
 			}
@@ -1191,6 +1199,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			final int prime = 31;
 			int result = 1;
 			result = prime * result + (isField ? 1231 : 1237);
+			result = prime * result + ((actualType == null) ? 0 : actualType.hashCode());
 			result = prime * result + ((constructorDesc == null) ? 0 : constructorDesc.hashCode());
 			result = prime * result + ((contents == null) ? 0 : contents.hashCode());
 			result = prime * result + ((initControlledPos == null) ? 0 : initControlledPos.hashCode());
@@ -1208,6 +1217,11 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 				return false;
 			ArrayValue other = (ArrayValue) obj;
 			if (isField != other.isField)
+				return false;
+			if (actualType == null) {
+				if (other.actualType != null)
+					return false;
+			} else if (!actualType.equals(other.actualType))
 				return false;
 			if (constructorDesc == null) {
 				if (other.constructorDesc != null)
@@ -1235,7 +1249,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 		@Override
 		public String toString() {
 			return "ArrayValue [type=" + type + ", length=" + length + ", contents=" + contents + ", isField=" + isField
-					+ ", constructorDesc=" + constructorDesc + ", initControlledPos=" + initControlledPos + "]";
+					+ ", actualType=" + actualType + ", constructorDesc=" + constructorDesc + ", initControlledPos=" + initControlledPos + "]";
 		}
 
 		private void writeObject(ObjectOutputStream oos) throws IOException {
@@ -1331,7 +1345,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			length = newVal;
 		}
 
-		public static void setAllInitDescAndPos(MultiDArray multiArr, String constructorDesc, Map<Integer, Value> initControlledPos) {
+		public static void setAllInitDescAndPos(MultiDArray multiArr, String actualType, String constructorDesc, Map<Integer, Value> initControlledPos) {
 			List<MultiDArray> links = new ArrayList<>();
 			links.add(multiArr);
 			MultiDArray currentD = multiArr;
@@ -1346,11 +1360,13 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			}
 			if (multiArr.initControlledPos == null || initControlledPos.size() > multiArr.initControlledPos.size()) {
 				links.forEach(e -> {
+					e.actualType = actualType;
 					e.constructorDesc = constructorDesc;
 					e.initControlledPos = initControlledPos;
 				});		
 			} else if (constructorDesc == null) {
 				links.forEach(e -> {
+					e.actualType = null;
 					e.constructorDesc = null;
 					e.initControlledPos = null;
 				}); // when isfield set to true wipe all contructordesc and initcontrolledpos values
@@ -1430,7 +1446,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			if (this.isField) {
 				MultiDArray.setEntireContent(copy, 2, null);
 			} else if (constructorDesc != null) {
-				MultiDArray.setAllInitDescAndPos(copy, constructorDesc, initControlledPos);
+				MultiDArray.setAllInitDescAndPos(copy, actualType, constructorDesc, initControlledPos);
 			}
 			MultiDArray currentD = copy;
 			MultiDArray oldcurrD = this;
@@ -1447,6 +1463,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 		public int hashCode() {
 			final int prime = 31;
 			int result = 1;
+			result = prime * result + ((actualType == null) ? 0 : actualType.hashCode());
 			result = prime * result + ((constructorDesc == null) ? 0 : constructorDesc.hashCode());
 			result = prime * result + ((content == null) ? 0 : content.hashCode());
 			result = prime * result + dim;
@@ -1469,6 +1486,13 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			MultiDArray other = (MultiDArray) obj;
 			if (isField != other.isField)
 				return false;
+			if (dim != other.dim)
+				return false;
+			if (actualType == null) {
+				if (other.actualType != null)
+					return false;
+			} else if (!actualType.equals(other.actualType))
+				return false;
 			if (constructorDesc == null) {
 				if (other.constructorDesc != null)
 					return false;
@@ -1478,8 +1502,6 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 				if (other.content != null)
 					return false;
 			} else if (!content.equals(other.content))
-				return false;
-			if (dim != other.dim)
 				return false;
 			if (indivLength == null) {
 				if (other.indivLength != null)
@@ -1507,7 +1529,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 		@Override
 		public String toString() {
 			return "MultiDArray [dim=" + dim + ", type=" + type + ", content=" + content + ", length=" + length + ", indivLength="
-					+ indivLength + ", isField=" + isField + ", constructorDesc=" + constructorDesc
+					+ indivLength + ", isField=" + isField + ", actualType=" + actualType + ", constructorDesc=" + constructorDesc
 					+ ", initControlledPos=" + initControlledPos + "]";
 		}
 
@@ -1589,6 +1611,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			if (isField) {
 				copy.isField = isField;
 			} else {
+				copy.actualType = actualType;
 				copy.constructorDesc = constructorDesc;
 				copy.initControlledPos = initControlledPos;
 			}
@@ -1603,6 +1626,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 		public int hashCode() {
 			final int prime = 31;
 			int result = 1;
+			result = prime * result + ((actualType == null) ? 0 : actualType.hashCode());
 			result = prime * result + ((constructorDesc == null) ? 0 : constructorDesc.hashCode());
 			result = prime * result + ((initControlledPos == null) ? 0 : initControlledPos.keySet().hashCode());
 			result = prime * result + (isField ? 1231 : 1237);
@@ -1619,6 +1643,13 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			if (getClass() != obj.getClass())
 				return false;
 			ReferenceValue other = (ReferenceValue) obj;
+			if (isField != other.isField)
+				return false;
+			if (actualType == null) {
+				if (other.actualType != null)
+					return false;
+			} else if (!actualType.equals(other.actualType))
+				return false;
 			if (constructorDesc == null) {
 				if (other.constructorDesc != null)
 					return false;
@@ -1628,8 +1659,6 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 				if (other.initControlledPos != null)
 					return false;
 			} else if (!initControlledPos.keySet().equals(other.initControlledPos.keySet()))
-				return false;
-			if (isField != other.isField)
 				return false;
 			if (value == null) {
 				if (other.value != null)
@@ -1641,12 +1670,13 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 
 		@Override
 		public String toString() {
-			return "ReferenceValue [value=" + value + ", isField=" + isField + ", constructorDesc=" + constructorDesc
+			return "ReferenceValue [value=" + value + ", isField=" + isField + ", actualType=" + actualType + ", constructorDesc=" + constructorDesc
 					+ ", initControlledPos=" + initControlledPos + "]";
 		}
 	}
 	
 	public static class ObjectVal implements Value, Serializable {
+		protected String actualType;
 		protected String constructorDesc; // used for <init> method matching later not hundred percent acc;
 		protected Map<Integer, Value> initControlledPos; // for methods invoked on reference values that are not fields their position will be noted down to determine the fields controlled by user 
 		protected boolean isField;
