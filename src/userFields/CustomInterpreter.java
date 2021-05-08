@@ -589,6 +589,23 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			if (value1 instanceof ArrayValue) {
 				ArrayValue arr = (ArrayValue) value1;
 				Value contents = arr.contents;
+				// return default primitive vals
+				if (contents == null) {
+					switch (insn.getOpcode()) {
+					case IALOAD:
+					case BALOAD:
+					case CALOAD:
+					case SALOAD:
+						return UserValues.INT_VALUE;
+					case FALOAD:
+						return UserValues.FLOAT_VALUE;
+					case DALOAD:
+						return UserValues.DOUBLE_VALUE;
+					case LALOAD:
+						return UserValues.LONG_VALUE;
+					}
+				}
+				
 				if (contents instanceof UserValues && ((UserValues) contents).isTainted()) {
 					UserValues con = (UserValues) contents;
 					if (index.isTainted()) {
@@ -619,6 +636,23 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 				MultiDArray multiArr = (MultiDArray) value1;
 				if (multiArr.dim == 1) {
 					Value contents = multiArr.content;
+					
+					if (contents == null) {
+						switch (insn.getOpcode()) {
+						case IALOAD:
+						case BALOAD:
+						case CALOAD:
+						case SALOAD:
+							return UserValues.INT_VALUE;
+						case FALOAD:
+							return UserValues.FLOAT_VALUE;
+						case DALOAD:
+							return UserValues.DOUBLE_VALUE;
+						case LALOAD:
+							return UserValues.LONG_VALUE;
+						}
+					}
+					
 					if (contents instanceof UserValues && ((UserValues) contents).isTainted()) {
 						UserValues con = (UserValues) contents;
 						if (index.isTainted()) {
@@ -964,12 +998,16 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			Map<Integer, Value> map = new Hashtable<>(); 
 			boolean isStatic = false;
 			boolean isField = false;
+			boolean isInterface = false;
 			boolean fixedType = false;
 			boolean notAnalyzable = false; 
 			MethodInfo mf;
 
 			if (opcode == INVOKESTATIC) 
 				isStatic = true;
+			
+			if (opcode == INVOKEINTERFACE)
+				isInterface = true;
 
 			int i = 0;
 			while (i < values.size()) {
@@ -1022,7 +1060,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 					}
 				}
 
-				mf = new MethodInfo(methodOwner, methodName, isStatic, map, methodDesc, isField, fixedType);
+				mf = new MethodInfo(methodOwner, methodName, isStatic, map, methodDesc, isField, fixedType, isInterface);
 				// during magic method inspection io methods are not added to the list
 				if (isMagicMethod && MethodInfo.checkIsInputStream(mf)) {
 					return ioReturnValue(returnType);
@@ -1117,6 +1155,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 	 * When *LOAD operations are performed, isField and constructor related properties are passed on to the ReferenceValue representing the selected 
 	 * Does not take element replacement or "removal into account" degree of influence in terms of isField and constructor can only increment
 	 * When isField is true, constructorDesc and initControlledPos will be null
+	 * Can add in support for partially resolved array
 	 */
 	public static class ArrayValue extends ObjectVal {
 		private static final long serialVersionUID = 1L;
@@ -1175,7 +1214,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			return false;
 		}
 
-		private boolean isTainted() {
+		public boolean isTainted() {
 			if (length.isTainted() || ((contents instanceof UserValues && ((UserValues) contents).isTainted()) || (contents instanceof ReferenceValue && ((ReferenceValue) contents).isTainted()))) 
 				return true;
 			return false;
@@ -1434,7 +1473,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			return false;
 		}
 
-		private boolean isTainted() {
+		public boolean isTainted() {
 			if (length.isTainted() || ((content instanceof UserValues && ((UserValues) content).isTainted()) || (content instanceof ReferenceValue && ((ReferenceValue) content).isTainted())))
 				return true;
 			return false;
@@ -1598,7 +1637,7 @@ public class CustomInterpreter extends Interpreter<Value> implements Opcodes {
 			value = val;
 		}
 
-		private boolean isTainted() {
+		public boolean isTainted() {
 			if (value.isTainted()) {
 				return true;
 			}

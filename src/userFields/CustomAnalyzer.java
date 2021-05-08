@@ -137,7 +137,6 @@ public class CustomAnalyzer implements Opcodes {
 			CustomFrame oldFrame = frames[insnIndex];
 			Subroutine subroutine = subroutines[insnIndex];
 			inInstructionsToProcess[insnIndex] = false;
-
 			// Simulate the execution of this instruction.
 			AbstractInsnNode insnNode = null;
 			try {

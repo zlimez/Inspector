@@ -5,31 +5,31 @@ import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import org.objectweb.asm.tree.analysis.Value;
 
+import hierarchy.SortClass.ClassAndBytes;
 import methodsEval.MethodInfo;
 import userFields.CustomInterpreter.ReferenceValue;
 import userFields.UserValues;;
 
 public class Entry {
-	public static Map<Class<?>, List<Object>> EntryPoint(Map<Class<?>, byte[]> classes) {
+	public static Map<Class<?>, List<Object>> EntryPoint(List<ClassAndBytes> classes) {
 		Map<Class<?>, List<Object>> entry = new HashMap<>();
-		Iterator<Map.Entry<Class<?>, byte[]>> it = classes.entrySet().iterator();
+		Iterator<ClassAndBytes> it = classes.iterator();
 		while (it.hasNext()) {
 			List<Object> info = new ArrayList<Object>();
-			Map.Entry<Class<?>, byte[]> clazz = (Map.Entry<Class<?>, byte[]>) it.next();
-			Class<?> c = clazz.getKey();
+			ClassAndBytes clazz = it.next();
+			Class<?> c = clazz.getClazz();
 			Method[] methods = c.getDeclaredMethods();
 			for (Method method : methods) {
 				String methodName = method.getName();
 				if (methodName.equals("readObject") || methodName.equals("readResolve") || methodName.equals("validateObject") || methodName.equals("readObjectNoData") || methodName.equals("readExternal")) {
 					boolean isStatic = Modifier.isStatic(method.getModifiers()) ? true : false;
-					Map<Integer, Value> sim = new Hashtable<Integer, Value>();
+					Map<Integer, Value> sim = new HashMap<Integer, Value>();
 					int argLength = method.getParameterCount();  
 					for (int i = 0; i < argLength; i++) { 
 						sim.put(i + 1, new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE)); // input stream is controlled by user hence whatever is read from it is too
@@ -40,7 +40,7 @@ public class Entry {
 						sim.put(0, thisObject);
 					}
 					MethodInfo mf = new MethodInfo(methodName, MethodInfo.convertDescriptor(method), isStatic, sim);  
-					Gadget possibleEntry = new Gadget(c.getName(), c, mf, null, clazz.getValue(), sim, 1);
+					Gadget possibleEntry = new Gadget(c.getName(), c, mf, null, clazz.getBytes(), sim, 1);
 					Collection<MethodInfo> next = possibleEntry.InspectMethod(new HashMap<>());
 					//magic methods that actually invoke further method
 					if (next.size() > 0) 
@@ -48,7 +48,7 @@ public class Entry {
 				}
 			}
 			if (!info.isEmpty()) {
-				info.add(0, clazz.getValue());
+				info.add(0, clazz.getBytes());
 				entry.put(c, info);
 			}
 			

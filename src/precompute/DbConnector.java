@@ -16,6 +16,7 @@ import java.util.Scanner;
 import chain.Blacklist;
 import chain.Enumerate.InvalidInputException;
 import chain.Manager;
+import precompute.ReadSystem.StoreHierarchy;
 
 /* 
  * user can precompute hierarchy of different JRE system library to save time and edit blacklist 
@@ -30,16 +31,16 @@ public class DbConnector {
 			if (choice.equalsIgnoreCase("Y")) {
 				System.out.println("Specify the version of java your data will belongs to");
 				int version = in.nextInt();
-				System.out.println("Do you wish to generate the data by \n\t 1.using a text file containing all the classes of the specified java version? \n\t 2. providing the path to the rt.jar file of the specified java version? (1/2)");
+				System.out.println("Do you wish to generate the data by \n\t 1. providing the path to the jmods directory of the specified java version? \n\t 2. providing the path to the rt.jar file of the specified java version? (1/2)");
 				int option = in.nextInt();
-				System.out.println("Provide the path to either the classlist file or rt.jar file");
+				System.out.println("Provide the path to either the jmods directory or rt.jar file");
 				String pathToFile = in.next();
 				if (option == 1) {
 					try (
 						ByteArrayOutputStream bos = new ByteArrayOutputStream();
 						ObjectOutputStream out = new ObjectOutputStream(bos)
 					) {
-						StoreHierarchy hierarchy = ReadSystem.readAndCreate(pathToFile);
+						StoreHierarchy hierarchy = ReadSystem.readJmods(pathToFile);
 						out.writeObject(hierarchy);
 					    String data = Base64.getEncoder().encodeToString(bos.toByteArray());
 						
@@ -50,20 +51,20 @@ public class DbConnector {
 						p.executeUpdate();
 					} 
 				} else if (option == 2) {
-					try (
-						ByteArrayOutputStream bos = new ByteArrayOutputStream();
-						ObjectOutputStream out = new ObjectOutputStream(bos)
-					) {
-						StoreHierarchy hierarchy = ReadSystem.readRtJar(pathToFile);
-						out.writeObject(hierarchy);
-					    String data = Base64.getEncoder().encodeToString(bos.toByteArray());
-						
-						String sql = "INSERT INTO JavaSE values (?, ?)";
-						PreparedStatement p = conn.prepareStatement(sql);
-						p.setInt(1, version);
-						p.setString(2, data);
-						p.executeUpdate();
-					} 
+//					try (
+//						ByteArrayOutputStream bos = new ByteArrayOutputStream();
+//						ObjectOutputStream out = new ObjectOutputStream(bos)
+//					) {
+//						StoreHierarchy hierarchy = ReadSystem.readRtJar(pathToFile);
+//						out.writeObject(hierarchy);
+//					    String data = Base64.getEncoder().encodeToString(bos.toByteArray());
+//						
+//						String sql = "INSERT INTO JavaSE values (?, ?)";
+//						PreparedStatement p = conn.prepareStatement(sql);
+//						p.setInt(1, version);
+//						p.setString(2, data);
+//						p.executeUpdate();
+//					} 
 				} else {
 					throw new InvalidInputException("Invalid Input");
 				}

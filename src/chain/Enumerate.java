@@ -32,19 +32,20 @@ import org.objectweb.asm.ClassReader;
 import chain.serialcheck.CheckForSerialization;
 import hierarchy.BuildOrder;
 import hierarchy.SortClass;
+import hierarchy.SortClass.ClassAndBytes;
 import methodsEval.MethodInfo;
 import precompute.DbConnector;
 import precompute.NeoVisualize;
-import precompute.StoreHierarchy;
+import precompute.ReadSystem.StoreHierarchy;
 
 public class Enumerate implements Serializable {
 	private static final long serialVersionUID = 1L;
 //	static int count = 0;
 	
 	private URL[] urls;
-	private transient Map<Class<?>, byte[]> serialClazzes;
-	private transient Map<Class<?>, byte[]> allClasses;
-	private transient Map<String, Map<Class<?>, byte[]>> hierarchy; // complete hierarchy
+	private transient List<ClassAndBytes> allClasses;
+	protected transient List<ClassAndBytes> handlers;
+	protected transient Map<String, List<ClassAndBytes>> hierarchy; // complete hierarchy
 	private transient Map<Class<?>, List<Object>> entryPoints;
 	private Map<String, Set<String>> magicMethods;
 	private Map<String, List<String>> blacklist; // List of interesting classes with their respective interesting methods
@@ -60,12 +61,13 @@ public class Enumerate implements Serializable {
 	private Set<Gadget> endPoints;
 	
 	private Map<String, Set<byte[]>> inithierarchy; //used to reinitialize hierarchy when analysis is continued 
+	private List<byte[]> inithandlers;
 	
 	public static void startScan() throws ClassNotFoundException, IOException, SQLException, InvalidInputException {
 		try (Scanner in = new Scanner(System.in)) {
 //			System.out.println("Are you starting a new analysis or do you wish to continue from one of the end points reached in previous analysis? (new/continue)?");
 //			String isNew = in.next();
-			String isNew = "continue";
+			String isNew = "new";
 //			System.out.println("Do you wish to store the end point gadget nodes of this analysis for further analysis later? (Y/N)");
 //			String resp = in.next();
 			boolean isStore = true;
@@ -92,11 +94,18 @@ public class Enumerate implements Serializable {
 //				divider.close();
 //				String[] pathsToFiles = paths.toArray(new String[paths.size()]);
 //				in.reset();
+				boolean dependencyResolved = false;
+				System.out.println("Can all dependencies be resolved within the files you wish to scan (If so, the tool will skip the step of building a dependency tree which can be time consuming)? (Y/N)");
+				String resp = in.next();
+				if (resp.equalsIgnoreCase("Y")) {
+					dependencyResolved = true;
+				} else if (!resp.equalsIgnoreCase("N")) 
+					throw new InvalidInputException("Invalid input");
 //				System.out.println("Specify the version of java the application will be running in (eg. 11)");
 //				int jdkVersion = in.nextInt();
 				
 				int jdkVersion = 11;
-				String[] pathsToFiles = new String[] {"/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/commons-collections4-4.0.jar"};
+				String[] pathsToFiles = new String[] {"/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/groovy-all-2.3.9.jar"};
 				
 				DbConnector.initBlacklist(jdkVersion); 
 				if (pathsToFiles[0].endsWith(".war")) {
@@ -105,12 +114,11 @@ public class Enumerate implements Serializable {
 					if (isStore) {
 						System.out.println("Specify the path to the directory where the war file will be unzipped into");
 						String tempdir = in.next();
-						target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles, serverDir, tempdir);
+						target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles, dependencyResolved, serverDir, tempdir);
 					} else 
-						target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles, serverDir);
-				} else {
-					target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles);
-				}
+						target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles, dependencyResolved, serverDir);
+				} else 
+					target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles, dependencyResolved);
 		 
 				target.configCommonVars(in);
 				target.isContinued = false;
@@ -157,14 +165,14 @@ public class Enumerate implements Serializable {
 //					throw new InvalidInputException("Invalid input");
 //				}
 			
-				Map<Class<?>, byte[]> dc = CheckForSerialization.deserializationOccurences(target.allClasses);
+				List<ClassAndBytes> dc = CheckForSerialization.deserializationOccurences(target.allClasses);
 				PrintWriter out = new PrintWriter(target.outputFile);
 				if (dc.isEmpty()) {
 					out.println("Warning no deserialization process in the application");
 				} else {
 					out.print("Location of deserialization: ");
-					dc.forEach((k, v) -> {
-						out.print(k.getName() + "; ");
+					dc.forEach((k) -> {
+						out.print(k.getClazz().getName() + "; ");
 					});
 					out.println();
 					out.flush();
@@ -258,20 +266,26 @@ public class Enumerate implements Serializable {
 		this.maxDepth = in.nextInt() + this.previousDepth;
 	}
 	
-	public Enumerate(int jdkVersion, Map<String, List<String>> blacklist, String[] pathsToFiles, String ... serverTemp) throws ClassNotFoundException, IOException, SQLException {
+	public Enumerate(int jdkVersion, Map<String, List<String>> blacklist, String[] pathsToFiles, boolean dependencyResolved, String ... serverTemp) throws ClassNotFoundException, IOException, SQLException {
 		SortClass sort = new SortClass(pathsToFiles, serverTemp);
-		List<Map<Class<?>, byte[]>> all = sort.getSerialAndAllClasses();
+		List<List<ClassAndBytes>> all = sort.getSerialAndAllClasses(dependencyResolved);
 		urls = sort.getUrls();
-		serialClazzes = all.get(0);
+		List<ClassAndBytes> serialClazzes = all.get(0);
 		allClasses = all.get(1);
-		Map<String, Map<Class<?>, byte[]>> fileHierarchy = BuildOrder.computeHierarchy(allClasses, serialClazzes);
+		handlers = all.get(2);
+		inithandlers = new ArrayList<>();
+		handlers.forEach(handler -> {
+			inithandlers.add(handler.getBytes());
+		});
+		Map<String, List<ClassAndBytes>> fileHierarchy = BuildOrder.computeHierarchy(allClasses, serialClazzes);
 		StoreHierarchy env = DbConnector.getSystemInfo(jdkVersion);
+		handlers.addAll(env.getHandlers());
 		hierarchy = BuildOrder.combineHierarchies(serialClazzes, env.getHierarchy(), fileHierarchy);
 		inithierarchy = new HashMap<>();
 		hierarchy.forEach((classname, subclasses) -> {
 			Set<byte[]> subset = new HashSet<>();
-			subclasses.forEach((clazz, bytes) -> {
-				subset.add(bytes);
+			subclasses.forEach((clazz) -> {
+				subset.add(clazz.getBytes());
 			});
 			inithierarchy.put(classname, subset);
 		});
@@ -375,7 +389,7 @@ public class Enumerate implements Serializable {
 					System.out.println("No next method found");
 				
 				for (MethodInfo m : next) {
-					List<Gadget> children = gadget.findChildren(m, hierarchy);
+					List<Gadget> children = gadget.findChildren(m, this);
 					for (Gadget child : children) {
 						queue.addLast(child);
 					}
@@ -409,7 +423,7 @@ public class Enumerate implements Serializable {
 		while (!subChains.isEmpty()) {
 			LinkedList<Gadget> subChain = subChains.getLast();
 			List<Gadget> parents = subChain.getFirst().getParents();
-			if (parents.get(0) == null) { //reached entry point can print chain
+			if (parents == null || parents.isEmpty()) { //reached entry point can print chain
 				if (isContinued)
 					out.println("... Please refer to neo4j database for the full chain");
 				subChain.forEach(g -> {
@@ -417,7 +431,7 @@ public class Enumerate implements Serializable {
 				});
 				out.println();
 				subChains.removeLast();
-			} else if (subChain.size() >= 7) {
+			} else if (subChain.size() >= maxDepth - previousDepth) {
 				subChains.removeLast();
 			} else {
 				if (parents.size() == 1) {		
@@ -463,19 +477,30 @@ public class Enumerate implements Serializable {
 	private void genHierarchy(ClassLoader loader) {
 		hierarchy = new HashMap<>();
 		inithierarchy.forEach((classname, subclasses) -> {
-			Map<Class<?>, byte[]> subset = new HashMap<>();
+			List<ClassAndBytes> subset = new ArrayList<>();
 			subclasses.forEach(bytes -> {
 				ClassReader cr = new ClassReader(bytes);
 				String name = cr.getClassName();
 				String outputStr = name.replaceAll("/", "\\.");
 				try {
 					Class<?> clazz = Class.forName(outputStr, false, loader);
-					subset.put(clazz, bytes);
+					subset.add(new ClassAndBytes(clazz, bytes));
 				} catch (ClassNotFoundException e) {
 					e.printStackTrace();
 				}
 			});
 			hierarchy.put(classname, subset);
+		});
+		handlers = new ArrayList<>();
+		inithandlers.forEach(bytes -> {
+			ClassReader cr = new ClassReader(bytes);
+			String name = cr.getClassName().replaceAll("/", "\\.");
+			try {
+				Class<?> clazz = Class.forName(name, false, loader);
+				handlers.add(new ClassAndBytes(clazz, bytes));
+			} catch (ClassNotFoundException e) {
+				e.printStackTrace();
+			}
 		});
 	}
 	

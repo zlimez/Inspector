@@ -1,22 +1,26 @@
 package hierarchy;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import hierarchy.SortClass.ClassAndBytes;
+
 public class BuildOrder {
-	public static Map<String, Map<Class<?>, byte[]>> computeHierarchy(Map<Class<?>, byte[]> allTypes, Map<Class<?>, byte[]> serialTypes) {
-		Iterator<Entry<Class<?>, byte[]>> it = allTypes.entrySet().iterator();
-		Map<String, Map<Class<?>, byte[]>> hierarchy = new HashMap<>();
+	public static Map<String, List<ClassAndBytes>> computeHierarchy(List<ClassAndBytes> allTypes, List<ClassAndBytes> serialTypes) {
+		Iterator<ClassAndBytes> it = allTypes.iterator();
+		Map<String, List<ClassAndBytes>> hierarchy = new HashMap<>();
 		while (it.hasNext()) {
-			Map.Entry<Class<?>, byte[]> e = (Map.Entry<Class<?>, byte[]>) it.next();
-			Class<?> parent = e.getKey();
+			ClassAndBytes e = it.next();
+			Class<?> parent = e.getClazz();
 			String className = parent.getName();
-			Map<Class<?>, byte[]> subtypes = new HashMap<Class<?>, byte[]>();
-			serialTypes.forEach((k, v) -> {
-				if (parent.isAssignableFrom(k)) {
-					subtypes.put(k, v);
+			List<ClassAndBytes> subtypes = new ArrayList<ClassAndBytes>();
+			serialTypes.forEach((k) -> {
+				if (parent.isAssignableFrom(k.getClazz())) {
+					subtypes.add(k);
 				}
 			});
 			if (subtypes.size() > 0) {
@@ -26,16 +30,16 @@ public class BuildOrder {
 		return hierarchy;
 	}
 	
-	public static Map<Class<?>, Map<Class<?>, byte[]>> computeSystemHierarchy(Map<Class<?>, byte[]> allTypes, Map<Class<?>, byte[]> serialTypes) {
-		Iterator<Entry<Class<?>, byte[]>> it = allTypes.entrySet().iterator();
-		Map<Class<?>, Map<Class<?>, byte[]>> classHierarchy = new HashMap<>();
+	public static Map<Class<?>, List<ClassAndBytes>> computeSystemHierarchy(List<ClassAndBytes> allTypes, List<ClassAndBytes> serialTypes) {
+		Iterator<ClassAndBytes> it = allTypes.iterator();
+		Map<Class<?>, List<ClassAndBytes>> classHierarchy = new HashMap<>();
 		while (it.hasNext()) {
-			Map.Entry<Class<?>, byte[]> e = (Map.Entry<Class<?>, byte[]>) it.next();
-			Class<?> parent = e.getKey();
-			Map<Class<?>, byte[]> subtypes = new HashMap<Class<?>, byte[]>();
-			serialTypes.forEach((k, v) -> {
-				if (parent.isAssignableFrom(k)) {
-					subtypes.put(k, v);
+			ClassAndBytes e = it.next();
+			Class<?> parent = e.getClazz();
+			List<ClassAndBytes> subtypes = new ArrayList<>();
+			serialTypes.forEach((k) -> {
+				if (parent.isAssignableFrom(k.getClazz())) {
+					subtypes.add(k);
 				}
 			});
 			classHierarchy.put(parent, subtypes);
@@ -43,19 +47,19 @@ public class BuildOrder {
 		return classHierarchy;
 	}
 
-	public static Map<String, Map<Class<?>, byte[]>> combineHierarchies(Map<Class<?>, byte[]> serialTypes, Map<Class<?>, Map<Class<?>, byte[]>> system, Map<String, Map<Class<?>, byte[]>> target) {
-		Iterator<Entry<Class<?>, Map<Class<?>, byte[]>>> it = system.entrySet().iterator();
-		Map<String, Map<Class<?>, byte[]>> finalHierarchy = new HashMap<>();
+	public static Map<String, List<ClassAndBytes>> combineHierarchies(List<ClassAndBytes> serialTypes, Map<Class<?>, List<ClassAndBytes>> system, Map<String, List<ClassAndBytes>> target) {
+		Iterator<Entry<Class<?>, List<ClassAndBytes>>> it = system.entrySet().iterator();
+		Map<String, List<ClassAndBytes>> finalHierarchy = new HashMap<>();
 		while (it.hasNext()) {
-			Map.Entry<Class<?>, Map<Class<?>, byte[]>> e = (Map.Entry<Class<?>, Map<Class<?>, byte[]>>) it.next();
+			Map.Entry<Class<?>, List<ClassAndBytes>> e = (Map.Entry<Class<?>, List<ClassAndBytes>>) it.next();
 			Class<?> parent = e.getKey();
 			String classname = parent.getName();
-			serialTypes.forEach((k, v) -> {
-				if (parent.isAssignableFrom(k)) {
-					e.getValue().put(k, v);
+			serialTypes.forEach((k) -> {
+				if (parent.isAssignableFrom(k.getClazz())) {
+					e.getValue().add(k);
 				}
 			});
-			Map<Class<?>, byte[]> moreSubtypes = e.getValue();
+			List<ClassAndBytes> moreSubtypes = e.getValue();
 			if (!moreSubtypes.isEmpty()) {
 				finalHierarchy.put(classname, moreSubtypes);
 			}

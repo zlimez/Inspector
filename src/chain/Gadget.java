@@ -15,6 +15,7 @@ import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.analysis.Value;
 
+import hierarchy.SortClass.ClassAndBytes;
 import methodsEval.MethodInfo;
 import methodsEval.RenderClass;
 import methodsEval.RenderMethod;
@@ -70,7 +71,7 @@ public class Gadget implements Serializable {
 		ClassReader cr = new ClassReader(byteContent);
 		ClassWriter cw = new ClassWriter(cr, 0); 
 		String owner = classname.replaceAll("\\.", "/");
-//		System.out.println(classname + ":" + method.getName() + userControlledArgPos.keySet());
+		System.out.println(classname + ":" + method.getName() + userControlledArgPos.keySet());
 		if (method.getIsField()) {
 			if (magicMethods.containsKey(classname) && !magicMethods.get(classname).contains(method.getName() + method.getDesc())) {
 				RenderStream rs = new RenderStream(cw, owner, magicMethods.get(classname));
@@ -104,16 +105,18 @@ public class Gadget implements Serializable {
 	}
 	
 	// result of Inspect method should be passed as argument to findChildrenComponents
-	public List<Gadget> findChildren(MethodInfo method, Map<String, Map<Class<?>, byte[]>> hierarchy) throws ClassNotFoundException {
+	public List<Gadget> findChildren(MethodInfo method, Enumerate container) throws ClassNotFoundException {
+		Map<String, List<ClassAndBytes>> hierarchy = container.hierarchy;
 		List<Gadget> childrenForThisMethod = new ArrayList<>();
 		String owner = method.getOwner().replaceAll("/", "\\.");
 		String methodName = method.getName();
 		String methodDesc = method.getDesc();
-		Map<Class<?>, byte[]> subtypes = new HashMap<>();
-		if (hierarchy.containsKey(owner)) 
-			subtypes = hierarchy.get(owner);
+		List<ClassAndBytes> subtypes = new ArrayList<>();
 		
-		if (subtypes.isEmpty()) {
+		if (hierarchy.containsKey(owner)) 
+			subtypes.addAll(hierarchy.get(owner));
+		
+		if (subtypes.isEmpty() && !method.canBeProxy()) {
 			try {
 				Class<?> last = Class.forName(owner);
 				Method[] methods = last.getDeclaredMethods();
@@ -134,13 +137,14 @@ public class Gadget implements Serializable {
 			children.add(likelyDeadEnd);
 			return childrenForThisMethod;
 		} // cases where the class the method belongs to is not found as it is not serializable but could be a blacklisted class:method	
-		String methodStr = method.toString();
+		String methodStr = method.gadgetMethodString();
 		//Only methods with isField = true will allow polymorphism
 		if (method.getFixedType()) {
-			subtypes.forEach((k, v) -> {
-				if (k.getName().equals(owner)) {
-					String key = k.getName() + methodStr;
-					Method[] allMethods = k.getDeclaredMethods(); 
+			subtypes.forEach(k -> {
+				Class<?> subtype = k.getClazz();
+				if (subtype.getName().equals(owner)) {
+					String key = subtype.getName() + methodStr;
+					Method[] allMethods = subtype.getDeclaredMethods(); 
 					for (int i = 0; i < allMethods.length; i++) {
 						if (methodName.equals(allMethods[i].getName()) && methodDesc.equals(MethodInfo.convertDescriptor(allMethods[i]))) {
 							Gadget nextComp;
@@ -148,7 +152,7 @@ public class Gadget implements Serializable {
 								nextComp = allGadgets.get(key);
 								nextComp.parents.add(this);
 							} else {
-								nextComp = new Gadget(k.getName(), k, method, this, v, method.getUserControlledArgPos(), depth + 1); // later should include classes who inherited the method to show all gadget chain possibilities
+								nextComp = new Gadget(subtype.getName(), subtype, method, this, k.getBytes(), method.getUserControlledArgPos(), depth + 1); // later should include classes who inherited the method to show all gadget chain possibilities
 								childrenForThisMethod.add(nextComp);
 							}
 						}
@@ -156,9 +160,10 @@ public class Gadget implements Serializable {
 				}
 			});
 		} else {		
-			subtypes.forEach((k, v) -> {
-				String key = k.getName() + methodStr;
-				Method[] allMethods = k.getDeclaredMethods(); 
+			subtypes.forEach(k -> {
+				Class<?> subtype = k.getClazz();
+				String key = subtype.getName() + methodStr;
+				Method[] allMethods = subtype.getDeclaredMethods(); 
 				for (int i = 0; i < allMethods.length; i++) {
 					if (methodName.equals(allMethods[i].getName()) && methodDesc.equals(MethodInfo.convertDescriptor(allMethods[i]))) {
 						Gadget nextComp;
@@ -166,12 +171,27 @@ public class Gadget implements Serializable {
 							nextComp = allGadgets.get(key);
 							nextComp.parents.add(this);
 						} else {
-							nextComp = new Gadget(k.getName(), k, method, this, v, method.getUserControlledArgPos(), depth + 1); // later should include classes who inherited the method to show all gadget chain possibilities
+							nextComp = new Gadget(subtype.getName(), subtype, method, this, k.getBytes(), method.getUserControlledArgPos(), depth + 1); // later should include classes who inherited the method to show all gadget chain possibilities
 							childrenForThisMethod.add(nextComp);
 						}
 					}
 				}
 			});
+			if (method.canBeProxy()) {
+				for (ClassAndBytes handler : container.handlers) {
+					Gadget nextComp;
+					Class<?> handlerClazz = handler.getClazz();
+					MethodInfo transformedMethod = method.transformToHandler(handler.getInvokeDesc());
+					String key = handlerClazz.getName() + transformedMethod.gadgetMethodString();
+					if (allGadgets.containsKey(key)) {
+						nextComp = allGadgets.get(key);
+						nextComp.parents.add(this);
+					} else {
+						nextComp = new Gadget(handlerClazz.getName(), handlerClazz, transformedMethod, this, handler.getBytes(), transformedMethod.getUserControlledArgPos(), depth + 1); // later should include classes who inherited the method to show all gadget chain possibilities
+						childrenForThisMethod.add(nextComp);
+					}
+				}
+			}
 		}
 		children.addAll(childrenForThisMethod);
 		return childrenForThisMethod;
@@ -286,6 +306,6 @@ public class Gadget implements Serializable {
 	}
 
 	public String genKey() {
-		return classname + method.toString();
+		return classname + method.gadgetMethodString();
 	}
 }

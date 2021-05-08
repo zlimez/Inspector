@@ -4,6 +4,7 @@ import java.io.Externalizable;
 import java.io.ObjectInputStream;
 import java.io.Serializable;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -11,10 +12,12 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.objectweb.asm.Type;
 import org.objectweb.asm.tree.analysis.Value;
 
 import userFields.CustomInterpreter.ArrayValue;
 import userFields.CustomInterpreter.MultiDArray;
+import userFields.CustomInterpreter.ObjectVal;
 import userFields.CustomInterpreter.ReferenceValue;
 import userFields.UserValues;
 
@@ -24,11 +27,12 @@ public class MethodInfo implements Serializable {
 	private String name;
 	private String desc;
 	private boolean isStatic; // determines do i need to parse the constructor of the next interesting method
+	private boolean isInterface;
 	private Map<Integer, Value> userControlledArgPos;
 	private boolean isField; // if the caller is a field in the class where the method is called
 	private boolean fixedType;
 	
-	public MethodInfo(String owner, String name, boolean isStatic, Map<Integer, Value> userControlledArgPos, String desc, boolean isField, boolean fixedType) {
+	public MethodInfo(String owner, String name, boolean isStatic, Map<Integer, Value> userControlledArgPos, String desc, boolean isField, boolean fixedType, boolean isInterface) {
 		this.owner = owner;
 		this.name = name;
 		this.isStatic = isStatic;
@@ -36,6 +40,7 @@ public class MethodInfo implements Serializable {
 		this.desc = desc;
 		this.isField = isField;
 		this.fixedType = fixedType;
+		this.isInterface = isInterface;
 	}
 	
 	public MethodInfo(String name, String desc, boolean isStatic, Map<Integer, Value> userControlledArgPos) { //for entry point only
@@ -45,6 +50,14 @@ public class MethodInfo implements Serializable {
 		this.fixedType = false;
 		this.isStatic = isStatic;
 		this.userControlledArgPos = userControlledArgPos;
+	}
+	
+	public MethodInfo(String name, String desc) { // used for transformation to handler
+		this.name = name;
+		this.desc = desc;
+		this.isField = true;
+		this.fixedType = false;
+		this.isStatic = false;
 	}
 	
 	public ReferenceValue limitedConstructorInfluence() { // when the object the method is invoked on is a local var which is tainted when initialized
@@ -79,6 +92,10 @@ public class MethodInfo implements Serializable {
 	
 	public boolean getFixedType() {
 		return fixedType;
+	}
+	
+	public boolean canBeProxy() {
+		return (isField && isInterface);
 	}
 	
 	// Could implement better comparison between two identical tainted methods
@@ -169,6 +186,46 @@ public class MethodInfo implements Serializable {
 			return false;			
 	}
 	
+	// not very good transformation as various argument values are condense into an array which uses the most tainted element to represemt its value
+	// emphasis on isField;
+	public MethodInfo transformToHandler(String invokeDesc) {
+		MethodInfo handler = new MethodInfo("invoke", invokeDesc);
+		Map<Integer, Value> handlerControlledArgPos = new HashMap<>();
+		ReferenceValue thisHandler = new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE);
+		thisHandler.setField();
+		ReferenceValue proxy = new ReferenceValue(UserValues.USERINFLUENCED_REFERENCE);
+		proxy.setField();
+		handlerControlledArgPos.put(0, thisHandler);
+		handlerControlledArgPos.put(1, proxy);
+		ArrayValue condensedArgs = new ArrayValue(Type.getObjectType("java/lang/Object"), UserValues.INT_VALUE);
+		boolean isTainted = false;
+		Iterator<Map.Entry<Integer, Value>> it = this.userControlledArgPos.entrySet().iterator();
+		while (it.hasNext()) {
+			Map.Entry<Integer, Value> arg = (Map.Entry<Integer, Value>) it.next();
+			Value argVal = arg.getValue();
+			if (argVal instanceof ObjectVal) {
+				if (((ObjectVal) argVal).getIsField()) {
+					condensedArgs.setField();
+					isTainted = true;
+					break;
+				}
+				if ((argVal instanceof ArrayValue && ((ArrayValue) argVal).isTainted()) 
+						|| (argVal instanceof MultiDArray && ((MultiDArray) argVal).isTainted())
+						|| (argVal instanceof ReferenceValue && ((ReferenceValue) argVal).isTainted())
+						) {
+					isTainted = true;
+				} 
+			} else {
+				if (((UserValues) argVal).isTainted())
+					isTainted = true;
+			}
+		}
+		if (isTainted)
+			condensedArgs.setContents(new ReferenceValue(UserValues.USERDERIVED_REFERENCE));
+		handler.userControlledArgPos = handlerControlledArgPos;
+		return handler;
+	}
+	
 	@Override
 	public int hashCode() {
 		final int prime = 31;
@@ -224,6 +281,11 @@ public class MethodInfo implements Serializable {
 	@Override
 	public String toString() {
 		return "MethodInfo [owner=" + owner + ", name=" + name + ", desc=" + desc + ", isStatic=" + isStatic
+				+ ", isField=" + isField + ", fixedType=" + fixedType + ", userControlledArgPos=" + userControlledArgPos + "]";
+	}
+	
+	public String gadgetMethodString() {
+		return "MethodInfo [name=" + name + ", desc=" + desc + ", isStatic=" + isStatic
 				+ ", isField=" + isField + ", fixedType=" + fixedType + ", userControlledArgPos=" + userControlledArgPos + "]";
 	}
 

@@ -8,7 +8,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLClassLoader;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,14 +33,15 @@ public class Unpack {
 			warDir = Files.createDirectory(Paths.get(".").resolve("Sample"));
 	}
 	// Return classloader for jar file entries in lib directory to feed to reflections
-	public static CustomLoader getLibLoader(Path warPath) throws IOException {
+	public static Object[] getLibLoader(Path warPath) throws IOException {
         
         // Extract to war to the temp directory
 		decompress(warPath, warDir);
-		
+		List<String> pathToJars = new ArrayList<>();
         final List<URL> classPathUrls = new ArrayList<>();
         Files.list(warDir.resolve("WEB-INF/lib")).forEach(p -> {
             try {
+            	pathToJars.add(p.toString());
                 classPathUrls.add(p.toUri().toURL());
             } catch (MalformedURLException e) {
                 throw new RuntimeException(e);
@@ -54,24 +54,21 @@ public class Unpack {
         });
         
         CustomLoader warURLs = new CustomLoader(classPathUrls.toArray(new URL[classPathUrls.size()]));
-        return warURLs;
+        return new Object[] {warURLs, pathToJars};
 	}
 	
-	public static CustomLoader genericResourceLoader(URLClassLoader loader, String serverPath) throws IOException {
+	public static List<String> genericResourceLoader(CustomLoader loader, String serverPath) throws IOException {
 		Path server = Paths.get(serverPath);
-		List<URL> urls = new ArrayList<>();
-		for (URL url: loader.getURLs()) {
-			urls.add(url);
-		}
+		List<String> serverJars = new ArrayList<>();
 		Files.list(server).forEach(p -> {
 			try {
-				urls.add(p.toUri().toURL());
+				loader.addURL(p.toUri().toURL());
+				serverJars.add(p.toString());
 			} catch (MalformedURLException e) {
                 throw new RuntimeException(e);
             }
 		});
-		CustomLoader genericLoader = new CustomLoader(urls.toArray(new URL[urls.size()]));
-		return genericLoader;
+		return serverJars;
 	}
 	
 	private static void decompress(Path file, Path dest) throws IOException {
@@ -97,7 +94,7 @@ public class Unpack {
 	
 	// Return byte array of the user classes
 	public static Object[] getClassesPath() throws IOException {
-		Object[] URLAndClass = new Object[2];
+		Object[] URLAndClass = new Object[3];
 		List<byte[]> clazzes = new ArrayList<>();
 		Path root = warDir.resolve("WEB-INF/classes");
 		URL userClassDir = root.toUri().toURL();
@@ -128,8 +125,9 @@ public class Unpack {
         		}
         	}
         });
-        URLAndClass[0] = userClassDir;
-		URLAndClass[1] = clazzes;
+		URLAndClass[0] = root.toString();
+        URLAndClass[1] = userClassDir;
+		URLAndClass[2] = clazzes;
 		return URLAndClass;
 	}
 
