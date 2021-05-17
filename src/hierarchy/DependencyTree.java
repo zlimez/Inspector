@@ -1,15 +1,15 @@
 package hierarchy;
 
 import java.io.BufferedInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
+
+import precompute.ReadSystem;
 
 public class DependencyTree {
 	public static Map<String, Clazz> allClazzes = new HashMap<>();
@@ -18,7 +18,6 @@ public class DependencyTree {
 		private String classname;
 		private boolean resolvable;
 		private Set<Clazz> dependentClasses;
-//		private String out = "/home/pcadmin/diagnose";
 		
 		public Clazz(String classname) {
 			this.classname = classname;
@@ -32,8 +31,6 @@ public class DependencyTree {
 			resolvable = false;
 			LinkedList<Clazz> queue = new LinkedList<>();
 			queue.add(this);
-//			PrintWriter p = new PrintWriter(new FileWriter(this.out, true));
-//			p.print(option + " "  + classname + "->");
 			
 			while (!queue.isEmpty()) {
 				Clazz first = queue.pollFirst();
@@ -42,12 +39,9 @@ public class DependencyTree {
 						queue.add(c);
 						c.resolvable = false;
 						all.add(c.classname);
-//						p.print(c.classname + "->");
 					}
 				}
 			}
-//			p.println();
-//			p.close();
 			return all;
 		}
 	}
@@ -56,11 +50,14 @@ public class DependencyTree {
 	public static Set<String> resolveDependencies(String[] pathToFile) throws IOException {
 		StringBuffer sb = new StringBuffer("jdeps -v ");
 		for (String path : pathToFile) {
-			sb.append(path + " ");
+			sb.append("\"" + path + "\"" + " ");
 		}
 
 		ProcessBuilder pb = new ProcessBuilder();
-		pb.command("bash","-c", sb.toString());
+		if (ReadSystem.isUnix) {
+			pb.command("bash","-c", sb.toString());
+		} else 
+			pb.command("CMD", "/C", sb.toString());
 		Process process = pb.start();
 
 		Set<String> NotDefinedClass = new HashSet<String>();
@@ -113,18 +110,7 @@ public class DependencyTree {
 				}
 			}
 		}
-		
-		NotDefinedClass.remove("org.codehaus.groovy.runtime.ConvertedClosure");
-		NotDefinedClass.remove("org.codehaus.groovy.runtime.MethodClosure");
-		NotDefinedClass.remove("org.codehaus.groovy.runtime.ConversionHandler");
-		NotDefinedClass.remove("groovy.lang.Closure");
-		System.out.println(NotDefinedClass.size());
+
 		return NotDefinedClass;
 	}
-	
-//		Iterator<String> it = NotDefinedClass.iterator();
-//		for (int i = 0; i < 1000; i++) {
-//			String test = it.next();
-//			it.remove();
-//		}
 }

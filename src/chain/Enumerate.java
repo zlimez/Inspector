@@ -19,7 +19,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +28,6 @@ import java.util.stream.Collectors;
 
 import org.objectweb.asm.ClassReader;
 
-import chain.serialcheck.CheckForSerialization;
 import hierarchy.BuildOrder;
 import hierarchy.SortClass;
 import hierarchy.SortClass.ClassAndBytes;
@@ -40,7 +38,6 @@ import precompute.ReadSystem.StoreHierarchy;
 
 public class Enumerate implements Serializable {
 	private static final long serialVersionUID = 1L;
-//	static int count = 0;
 	
 	private URL[] urls;
 	private transient List<ClassAndBytes> allClasses;
@@ -48,7 +45,6 @@ public class Enumerate implements Serializable {
 	protected transient Map<String, List<ClassAndBytes>> hierarchy; // complete hierarchy
 	private transient Map<Class<?>, List<Object>> entryPoints;
 	private Map<String, Set<String>> magicMethods;
-	private Map<String, List<String>> blacklist; // List of interesting classes with their respective interesting methods
 	private transient String outputFile;
 	private int maxDepth;
 	private int previousDepth; 
@@ -63,14 +59,14 @@ public class Enumerate implements Serializable {
 	private Map<String, Set<byte[]>> inithierarchy; //used to reinitialize hierarchy when analysis is continued 
 	private List<byte[]> inithandlers;
 	
-	public static void startScan() throws ClassNotFoundException, IOException, SQLException, InvalidInputException {
+	public static void main(String[] args) throws ClassNotFoundException, IOException, SQLException, InvalidInputException {
 		try (Scanner in = new Scanner(System.in)) {
 //			System.out.println("Are you starting a new analysis or do you wish to continue from one of the end points reached in previous analysis? (new/continue)?");
 //			String isNew = in.next();
-			String isNew = "new";
 //			System.out.println("Do you wish to store the end point gadget nodes of this analysis for further analysis later? (Y/N)");
 //			String resp = in.next();
-			boolean isStore = true;
+			String isNew = "new";
+//			boolean isStore;
 //			if (resp.equalsIgnoreCase("Y")) {
 //				isStore = true;
 //			} else if (resp.equalsIgnoreCase("N")) {
@@ -81,69 +77,62 @@ public class Enumerate implements Serializable {
 			
 			Enumerate target;
 			if (isNew.equalsIgnoreCase("new")) {
-//				in.useDelimiter("\\n");
-//				System.out.println("Specify the paths to the jar files or path to the war file of the application you wish to scan (for paths to jar files shoudl be formatted as such {path1}, {path2}, ...");
-//				String files = in.next();
-//				Scanner divider = new Scanner(files);
-//				List<String> paths = new ArrayList<>();
-//				divider.useDelimiter("\\s*\\,\\s*");
-//				while (divider.hasNext()) {
-//					String pathToFile = divider.next();
-//					paths.add(pathToFile);
-//				}
-//				divider.close();
-//				String[] pathsToFiles = paths.toArray(new String[paths.size()]);
-//				in.reset();
+				in.useDelimiter("\\n|\\r");
+				System.out.println("Specify the paths to the jar files or path to the war file of the application you wish to scan (for paths to jar files shoudl be formatted as such {path1}, {path2}, ...");
+				String files = in.next();
+				Scanner divider = new Scanner(files);
+				List<String> paths = new ArrayList<>();
+				divider.useDelimiter("\\s*\\,\\s*");
+				while (divider.hasNext()) {
+					String pathToFile = divider.next();
+					paths.add(pathToFile);
+				}
+				divider.close();
+				String[] pathsToFiles = paths.toArray(new String[paths.size()]);
+				in.reset();
+//				String[] pathsToFiles = new String[] {"C:\\Users\\Public\\Scanner Test Site\\commons-collections4-4.0.jar"};
 				boolean dependencyResolved = false;
 				System.out.println("Can all dependencies be resolved within the files you wish to scan (If so, the tool will skip the step of building a dependency tree which can be time consuming)? (Y/N)");
-				String resp = in.next();
-				if (resp.equalsIgnoreCase("Y")) {
+				String response = in.next();
+				if (response.equalsIgnoreCase("Y")) {
 					dependencyResolved = true;
-				} else if (!resp.equalsIgnoreCase("N")) 
+				} else if (!response.equalsIgnoreCase("N")) 
 					throw new InvalidInputException("Invalid input");
-//				System.out.println("Specify the version of java the application will be running in (eg. 11)");
-//				int jdkVersion = in.nextInt();
 				
-				int jdkVersion = 11;
-				String[] pathsToFiles = new String[] {"/home/pcadmin/Deserialization/playground/GadgetChain-sm/TESTS/groovy-all-2.3.9.jar"};
-				
-				DbConnector.initBlacklist(jdkVersion); 
 				if (pathsToFiles[0].endsWith(".war")) {
 					System.out.println("Specify the path to the directory containing all the jar files of the server the war file will be running on (eg. tomcat)");
 					String serverDir = in.next();
-					if (isStore) {
-						System.out.println("Specify the path to the directory where the war file will be unzipped into");
-						String tempdir = in.next();
-						target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles, dependencyResolved, serverDir, tempdir);
-					} else 
-						target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles, dependencyResolved, serverDir);
+//					if (isStore) {
+//						System.out.println("Specify the path to the directory where the war file will be unzipped into");
+//						String tempdir = in.next();
+//						target = new Enumerate(pathsToFiles, dependencyResolved, serverDir, tempdir);
+//					} else 
+						target = new Enumerate(pathsToFiles, dependencyResolved, serverDir);
 				} else 
-					target = new Enumerate(jdkVersion, Blacklist.getList(), pathsToFiles, dependencyResolved);
+					target = new Enumerate(pathsToFiles, dependencyResolved);
 		 
 				target.configCommonVars(in);
 				target.isContinued = false;
 				
-//				System.out.println("Do you wish to select specific class:methods to start the analysis (Y/N)?");
-//				String choice = in.next();
-//				if (choice.equalsIgnoreCase("Y")) {
-					target.scanStart = new Hashtable<>();
-//					System.out.println("Specify the path to the file you want to output the list of possible entry points for the analysis");
-//					String entries = in.next();
-//					PrintWriter writer = new PrintWriter(entries);
-//					target.entryPoints.forEach((k, v) -> {
-//						writer.print(k.getName() + ": ");
-//						for (int i = 1; i < v.size(); i++) {
-//							MethodInfo mf = (MethodInfo) v.get(i);
-//							writer.print(mf.getName() + mf.getDesc() + ", ");
-//						}
-//						writer.println();
-//					});
-//					writer.flush();
-//					writer.close();
-//					System.out.println("Specify the path to the file containing the class:methods (Each class should be written in their canonical name followed by a :, and its methods separated by a , including both the method name and descriptor eg. readObject(Ljava/io/ObjectInputStream;)V");
-//					String file = in.next();
-				
-					String file = "/home/pcadmin/entry";
+				System.out.println("Do you wish to select specific class:methods to start the analysis (Y/N)?");
+				String choice = in.next();
+				if (choice.equalsIgnoreCase("Y")) {
+					target.scanStart = new HashMap<>();
+					System.out.println("Specify the path to the file you want to output the list of possible entry points for the analysis");
+					String entries = in.next();
+					PrintWriter writer = new PrintWriter(entries);
+					target.entryPoints.forEach((k, v) -> {
+						writer.print(k.getName() + ": ");
+						for (int i = 1; i < v.size(); i++) {
+							MethodInfo mf = (MethodInfo) v.get(i);
+							writer.print(mf.getName() + mf.getDesc() + ", ");
+						}
+						writer.println();
+					});
+					writer.flush();
+					writer.close();
+					System.out.println("Specify the path to the file containing the class:methods (Each class should be written in their canonical name followed by a :, and its methods separated by a , including both the method name and descriptor eg. readObject(Ljava/io/ObjectInputStream;)V");
+					String file = in.next();
 				
 					Scanner read = new Scanner(new FileInputStream(file));
 					while (read.hasNextLine()) {
@@ -159,29 +148,15 @@ public class Enumerate implements Serializable {
 						scanLine.close();
 						target.scanStart.put(clazz, methods);
 					}
-//					read.close();
-//				} else if (choice.equalsIgnoreCase("N")) {
-//				} else {
-//					throw new InvalidInputException("Invalid input");
-//				}
-			
-				List<ClassAndBytes> dc = CheckForSerialization.deserializationOccurences(target.allClasses);
-				PrintWriter out = new PrintWriter(target.outputFile);
-				if (dc.isEmpty()) {
-					out.println("Warning no deserialization process in the application");
+					read.close();
+				} else if (choice.equalsIgnoreCase("N")) {
 				} else {
-					out.print("Location of deserialization: ");
-					dc.forEach((k) -> {
-						out.print(k.getClazz().getName() + "; ");
-					});
-					out.println();
-					out.flush();
+					throw new InvalidInputException("Invalid input");
 				}
-				out.close();
+			
 				target.initAllEntry();
 				target.allPotentialGadgets.removeIf(g -> !g.getVisitStatus());
 				System.out.println(target.allPotentialGadgets.size());
-//				System.out.println(count);
 				in.useDelimiter("\\n");
 			} else if (isNew.equalsIgnoreCase("continue")) {
 				System.out.println("Specify the path to the file where the results of previous analysis is stored");
@@ -227,35 +202,29 @@ public class Enumerate implements Serializable {
 				throw new InvalidInputException("Invalid input");
 			}
 			
-//			int maxRel = 0;
-//			for (Gadget node : target.allPotentialGadgets) {
-//				if (node.getRevisedChildren().size() > maxRel)
-//					maxRel = node.getRevisedChildren().size();
+//			System.out.println("Assuming you have neo4j desktop installed, please provide the port your DBMS is running on, your username and password in this format bolt://localhost:{portNum}, {username}, {password}");
+//			String dbInfo = in.next();
+//			Scanner parse = new Scanner(dbInfo);
+//			parse.useDelimiter("\\s*\\,\\s*");
+//			String port = parse.next();
+//			String user = parse.next();
+//			String pw = parse.next();
+//			parse.close();
+//			in.reset();
+//			try (NeoVisualize visualize = new NeoVisualize(port, user, pw, target.allPotentialGadgets, target.maxDepth, target.isContinued, target.startPoints)) {
+//				visualize.initDB();
+//				visualize.genGraph();
+//			} catch (Exception e) {
+//				e.printStackTrace();
 //			}
-//			System.out.println(maxRel);
-			System.out.println("Assuming you have neo4j desktop installed, please provide the port your DBMS is running on, your username and password in this format bolt://localhost:{portNum}, {username}, {password}");
-			String dbInfo = in.next();
-			Scanner parse = new Scanner(dbInfo);
-			parse.useDelimiter("\\s*\\,\\s*");
-			String port = parse.next();
-			String user = parse.next();
-			String pw = parse.next();
-			parse.close();
-			in.reset();
-			try (NeoVisualize visualize = new NeoVisualize(port, user, pw, target.allPotentialGadgets, target.maxDepth, target.isContinued, target.startPoints)) {
-				visualize.initDB();
-				visualize.genGraph();
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-			
-			if (isStore) {
-				System.out.println("Specify the path to the file you wish to store this analysis instance");
-				String dest = in.next();
-				ObjectOutputStream oos = new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(dest)));
-				oos.writeObject(target);
-				oos.close();
-			} 
+//			
+//			if (isStore) {
+//				System.out.println("Specify the path to the file you wish to store this analysis instance");
+//				String dest = in.next();
+//				ObjectOutputStream oos = new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(dest)));
+//				oos.writeObject(target);
+//				oos.close();
+//			} 
 		}
 	}
 	
@@ -266,7 +235,7 @@ public class Enumerate implements Serializable {
 		this.maxDepth = in.nextInt() + this.previousDepth;
 	}
 	
-	public Enumerate(int jdkVersion, Map<String, List<String>> blacklist, String[] pathsToFiles, boolean dependencyResolved, String ... serverTemp) throws ClassNotFoundException, IOException, SQLException {
+	public Enumerate(String[] pathsToFiles, boolean dependencyResolved, String ... serverTemp) throws ClassNotFoundException, IOException, SQLException {
 		SortClass sort = new SortClass(pathsToFiles, serverTemp);
 		List<List<ClassAndBytes>> all = sort.getSerialAndAllClasses(dependencyResolved);
 		urls = sort.getUrls();
@@ -278,7 +247,7 @@ public class Enumerate implements Serializable {
 			inithandlers.add(handler.getBytes());
 		});
 		Map<String, List<ClassAndBytes>> fileHierarchy = BuildOrder.computeHierarchy(allClasses, serialClazzes);
-		StoreHierarchy env = DbConnector.getSystemInfo(jdkVersion);
+		StoreHierarchy env = DbConnector.getSystemInfo();
 		handlers.addAll(env.getHandlers());
 		hierarchy = BuildOrder.combineHierarchies(serialClazzes, env.getHierarchy(), fileHierarchy);
 		inithierarchy = new HashMap<>();
@@ -302,8 +271,6 @@ public class Enumerate implements Serializable {
 			}
 			magicMethods.put(classname, methodID);
 		});
-		
-		this.blacklist = blacklist;
 		endPoints = new HashSet<>();
 		allPotentialGadgets = new HashSet<>();
 		queue = new LinkedList<>();
@@ -361,25 +328,15 @@ public class Enumerate implements Serializable {
 	public void findChainByBFS() throws ClassNotFoundException, IOException {
 		Set<Gadget> sinks = new HashSet<>();
 		while (!queue.isEmpty()) {
-//			count++;
 			Gadget gadget = queue.pollFirst();
 			allPotentialGadgets.add(gadget);
-			if (blacklist.containsKey(gadget.getName()) || (gadget.getClazz() != null && blacklist.containsKey(gadget.getClazz().getName()))) {
-				String clazz;
-				if (gadget.getClazz() == null) {
-					clazz = gadget.getName();
-				} else 
-					clazz = gadget.getClazz().getName();
-				
-				MethodInfo method = gadget.getMethod();
-				if (blacklist.get(clazz).contains(method.getName() + ":" + method.getDesc())) {
-					sinks.add(gadget);
-					gadget.setIsSink();
-				}
+			if (Blacklist.isBlacklisted(gadget)) {
+				sinks.add(gadget);
+				gadget.setIsSink();
 			} else if (gadget.getClazz() == null) {
-				System.out.println("The class " + gadget.getName() + " is not found as it is not serializable ");
+				System.out.println("The class " + gadget.getClassname() + " is not found as it is not serializable ");
 			} else if (gadget.getBytes() == null) {
-				System.out.println("The class " + gadget.getClazz().getName() + " is not found hence terminated path");
+				System.out.println("The class " + gadget.getClassname() + " is not found hence terminated path");
 			} else if (gadget.getDepth() >= maxDepth) {
 				System.out.println("Max recursion depth reached");
 				endPoints.add(gadget);
@@ -426,9 +383,16 @@ public class Enumerate implements Serializable {
 			if (parents == null || parents.isEmpty()) { //reached entry point can print chain
 				if (isContinued)
 					out.println("... Please refer to neo4j database for the full chain");
-				subChain.forEach(g -> {
-					out.println(g.getClazz().getName() + ":" + g.getMethod().getName());
-				});
+				boolean highConfidence = true;
+				for (Gadget g : subChain) {
+					if (g.proxyCaller != null)
+						out.println("(Proxy)" + g.proxyCaller);
+					out.println(g.getClazz().getName() + "." + g.getMethod().getName());
+					if (!g.getMethod().getIsField())
+						highConfidence = false;
+				};
+				if (highConfidence)
+					out.println("High Confidence");
 				out.println();
 				subChains.removeLast();
 			} else if (subChain.size() >= maxDepth - previousDepth) {

@@ -202,26 +202,31 @@ public class MethodInfo implements Serializable {
 		Iterator<Map.Entry<Integer, Value>> it = this.userControlledArgPos.entrySet().iterator();
 		while (it.hasNext()) {
 			Map.Entry<Integer, Value> arg = (Map.Entry<Integer, Value>) it.next();
-			Value argVal = arg.getValue();
-			if (argVal instanceof ObjectVal) {
-				if (((ObjectVal) argVal).getIsField()) {
-					condensedArgs.setField();
-					isTainted = true;
-					break;
+			// this object already considered
+			if (arg.getKey() != 0) {
+				Value argVal = arg.getValue();
+				if (argVal instanceof ObjectVal) {
+					if (((ObjectVal) argVal).getIsField()) {
+						condensedArgs.setField();
+						isTainted = true;
+						break;
+					}
+					if ((argVal instanceof ArrayValue && ((ArrayValue) argVal).isTainted()) 
+							|| (argVal instanceof MultiDArray && ((MultiDArray) argVal).isTainted())
+							|| (argVal instanceof ReferenceValue && ((ReferenceValue) argVal).isTainted())
+							) {
+						isTainted = true;
+					} 
+				} else {
+					if (((UserValues) argVal).isTainted())
+						isTainted = true;
 				}
-				if ((argVal instanceof ArrayValue && ((ArrayValue) argVal).isTainted()) 
-						|| (argVal instanceof MultiDArray && ((MultiDArray) argVal).isTainted())
-						|| (argVal instanceof ReferenceValue && ((ReferenceValue) argVal).isTainted())
-						) {
-					isTainted = true;
-				} 
-			} else {
-				if (((UserValues) argVal).isTainted())
-					isTainted = true;
 			}
 		}
-		if (isTainted)
+		if (isTainted) {
 			condensedArgs.setContents(new ReferenceValue(UserValues.USERDERIVED_REFERENCE));
+			handlerControlledArgPos.put(3, condensedArgs);
+		}
 		handler.userControlledArgPos = handlerControlledArgPos;
 		return handler;
 	}
@@ -432,170 +437,4 @@ public class MethodInfo implements Serializable {
 		}
 		return true;
 	}
-
-//	@Override
-//	public int compareTo(MethodInfo other) {
-//		if (isField) {
-//			if (other.isField) {
-//				int fieldCount1 = 0;
-//				int localTaintCount1 = 0;
-//				Iterator<Map.Entry<Integer, Value>> it = userControlledArgPos.entrySet().iterator();
-//				while (it.hasNext()) {
-//					Map.Entry<Integer, Value> entry = (Map.Entry<Integer, Value>) it.next();
-//					Value value = entry.getValue();
-//					if (!(value instanceof UserValues)) {
-//						if (value instanceof ReferenceValue) {
-//							if (((ReferenceValue) value).getIsField())
-//								fieldCount1++;
-//							else 
-//								localTaintCount1++;
-//						} else if (value instanceof ArrayValue) {
-//							ArrayValue arr = (ArrayValue) value;
-//							if (arr.getType().equals(Type.getObjectType("java/lang/Object"))) {
-//								if (arr.getIsField())
-//									fieldCount1++;
-//								else
-//									localTaintCount1++;
-//							}
-//						} else {
-//							MultiDArray multiArr = (MultiDArray) value;
-//							if (multiArr.getType().equals(Type.getObjectType("java/lang/Object"))) {
-//								if (multiArr.getIsField())
-//									fieldCount1++;
-//								else 
-//									localTaintCount1++;
-//							}
-//						}
-//					}
-//				}
-//				int fieldCount2 = 0;
-//				int localTaintCount2 = 0;
-//				Iterator<Map.Entry<Integer, Value>> it2 = other.userControlledArgPos.entrySet().iterator();
-//				while (it.hasNext()) {
-//					Map.Entry<Integer, Value> entry = (Map.Entry<Integer, Value>) it.next();
-//					Value value = entry.getValue();
-//					if (!(value instanceof UserValues)) {
-//						if (value instanceof ReferenceValue) {
-//							if (((ReferenceValue) value).getIsField())
-//								fieldCount2++;
-//							else 
-//								localTaintCount2++;
-//						} else if (value instanceof ArrayValue) {
-//							ArrayValue arr = (ArrayValue) value;
-//							if (arr.getType().equals(Type.getObjectType("java/lang/Object"))) {
-//								if (arr.getIsField())
-//									fieldCount2++;
-//								else
-//									localTaintCount2++;
-//							}
-//						} else {
-//							MultiDArray multiArr = (MultiDArray) value;
-//							if (multiArr.getType().equals(Type.getObjectType("java/lang/Object"))) {
-//								if (multiArr.getIsField())
-//									fieldCount2++;
-//								else 
-//									localTaintCount2++;
-//							}
-//						}
-//					}
-//				}
-//				if (fieldCount1 == fieldCount2) {
-//					if (localTaintCount1 == localTaintCount2) {
-//						if (userControlledArgPos.size() > other.userControlledArgPos.size())
-//							return true;
-//						else 
-//							return false;
-//					} else if (localTaintCount1 > localTaintCount2)
-//						return 1;
-//					else if 
-//						return ;
-//				} else if (fieldCount1 > fieldCount2)
-//					return true;
-//				else 
-//					return false;
-//			}
-//		} else {
-//			if (other.isField)
-//				return -1;
-//			else {
-//				int fieldCount1 = 0;
-//				int localTaintCount1 = 0;
-//				Iterator<Map.Entry<Integer, Value>> it = userControlledArgPos.entrySet().iterator();
-//				while (it.hasNext()) {
-//					Map.Entry<Integer, Value> entry = (Map.Entry<Integer, Value>) it.next();
-//					Value value = entry.getValue();
-//					if (!(value instanceof UserValues)) {
-//						if (value instanceof ReferenceValue) {
-//							if (((ReferenceValue) value).getIsField())
-//								fieldCount1++;
-//							else 
-//								localTaintCount1++;
-//						} else if (value instanceof ArrayValue) {
-//							ArrayValue arr = (ArrayValue) value;
-//							if (arr.getType().equals(Type.getObjectType("java/lang/Object"))) {
-//								if (arr.getIsField())
-//									fieldCount1++;
-//								else
-//									localTaintCount1++;
-//							}
-//						} else {
-//							MultiDArray multiArr = (MultiDArray) value;
-//							if (multiArr.getType().equals(Type.getObjectType("java/lang/Object"))) {
-//								if (multiArr.getIsField())
-//									fieldCount1++;
-//								else 
-//									localTaintCount1++;
-//							}
-//						}
-//					}
-//				}
-//				int fieldCount2 = 0;
-//				int localTaintCount2 = 0;
-//				Iterator<Map.Entry<Integer, Value>> it2 = other.userControlledArgPos.entrySet().iterator();
-//				while (it.hasNext()) {
-//					Map.Entry<Integer, Value> entry = (Map.Entry<Integer, Value>) it.next();
-//					Value value = entry.getValue();
-//					if (!(value instanceof UserValues)) {
-//						if (value instanceof ReferenceValue) {
-//							if (((ReferenceValue) value).getIsField())
-//								fieldCount2++;
-//							else 
-//								localTaintCount2++;
-//						} else if (value instanceof ArrayValue) {
-//							ArrayValue arr = (ArrayValue) value;
-//							if (arr.getType().equals(Type.getObjectType("java/lang/Object"))) {
-//								if (arr.getIsField())
-//									fieldCount2++;
-//								else
-//									localTaintCount2++;
-//							}
-//						} else {
-//							MultiDArray multiArr = (MultiDArray) value;
-//							if (multiArr.getType().equals(Type.getObjectType("java/lang/Object"))) {
-//								if (multiArr.getIsField())
-//									fieldCount2++;
-//								else 
-//									localTaintCount2++;
-//							}
-//						}
-//					}
-//				}
-//				if (fieldCount1 == fieldCount2) {
-//					if (localTaintCount1 == localTaintCount2) {
-//						if (userControlledArgPos.size() > other.userControlledArgPos.size())
-//							return true;
-//						else 
-//							return false;
-//					} else if (localTaintCount1 > localTaintCount2)
-//						return true;
-//					else 
-//						return false;
-//				} else if (fieldCount1 > fieldCount2)
-//					return true;
-//				else 
-//					return false;
-//			}
-//		}
-//	}
 }
- 

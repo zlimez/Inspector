@@ -41,8 +41,9 @@ public class Gadget implements Serializable {
 	private transient boolean visited = false;
 	
 	protected String classname; // used only when class cannot be found correspond to 2nd constructor
+	protected String proxyCaller; // the interface that routes the call to this InvocationHandler 
 	
-	public Gadget(String classname, Class<?> type, MethodInfo m, Gadget parent, byte[] b, Map<Integer, Value> userControlledArgPos, int depth) {
+	public Gadget(String classname, Class<?> type, MethodInfo m, Gadget parent, byte[] b, Map<Integer, Value> userControlledArgPos, int depth, String...proxyCaller) {
 		this.classname = classname;
 		this.clazz = type;
 		this.method = m;
@@ -53,6 +54,8 @@ public class Gadget implements Serializable {
 		this.byteContent = b;
 		this.userControlledArgPos = userControlledArgPos;
 		this.depth = depth;
+		if (proxyCaller.length > 0)
+			this.proxyCaller = proxyCaller[0];
 		
 		allGadgets.put(this.genKey(), this);
 	}
@@ -82,9 +85,6 @@ public class Gadget implements Serializable {
 			} else if (Serializable.class.isAssignableFrom(clazz)) { // all classes are certainly serializable now which will be altered later for a better analysis
 				RenderClass rc = new RenderClass(cw, owner, method.getName(), method.getDesc(), userControlledArgPos, true, null);
 				cr.accept(rc, 0);
-//				rc.getNextInvokedMethods().forEach(mf -> {
-//					System.out.println(" " + mf.getOwner() + " " + mf.getName() + " " + mf.getUserControlledArgPos().keySet());
-//				});
 				return rc.getNextInvokedMethods();
 			}
 		}
@@ -182,12 +182,12 @@ public class Gadget implements Serializable {
 					Gadget nextComp;
 					Class<?> handlerClazz = handler.getClazz();
 					MethodInfo transformedMethod = method.transformToHandler(handler.getInvokeDesc());
-					String key = handlerClazz.getName() + transformedMethod.gadgetMethodString();
+					String key = handlerClazz.getName() + transformedMethod.gadgetMethodString() + method.getOwner() + "." + method.getName();
 					if (allGadgets.containsKey(key)) {
 						nextComp = allGadgets.get(key);
 						nextComp.parents.add(this);
 					} else {
-						nextComp = new Gadget(handlerClazz.getName(), handlerClazz, transformedMethod, this, handler.getBytes(), transformedMethod.getUserControlledArgPos(), depth + 1); // later should include classes who inherited the method to show all gadget chain possibilities
+						nextComp = new Gadget(handlerClazz.getName(), handlerClazz, transformedMethod, this, handler.getBytes(), transformedMethod.getUserControlledArgPos(), depth + 1, method.getOwner() + "." + method.getName()); // later should include classes who inherited the method to show all gadget chain possibilities
 						childrenForThisMethod.add(nextComp);
 					}
 				}
@@ -226,10 +226,6 @@ public class Gadget implements Serializable {
 	
 	public int getDepth() {
 		return depth;
-	}
-	
-	public String getName() {
-		return classname;
 	}
 	
 	public boolean getVisitStatus() {
@@ -278,6 +274,7 @@ public class Gadget implements Serializable {
 		result = prime * result + Arrays.hashCode(byteContent);
 		result = prime * result + ((classname == null) ? 0 : classname.hashCode());
 		result = prime * result + ((method == null) ? 0 : method.hashCode());
+		result = prime * result + ((proxyCaller == null) ? 0 : proxyCaller.hashCode());
 		return result;
 	}
 
@@ -302,10 +299,17 @@ public class Gadget implements Serializable {
 				return false;
 		} else if (!method.equals(other.method))
 			return false;
+		if (proxyCaller == null) {
+			if (other.proxyCaller != null)
+				return false;
+		} else if (!proxyCaller.equals(other.proxyCaller))
+			return false;
 		return true;
 	}
 
 	public String genKey() {
+		if (proxyCaller != null)
+			return classname + method.gadgetMethodString() + proxyCaller;
 		return classname + method.gadgetMethodString();
 	}
 }

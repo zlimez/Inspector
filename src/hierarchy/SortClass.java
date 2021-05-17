@@ -20,6 +20,7 @@ import java.util.Set;
 import org.objectweb.asm.ClassReader;
 
 import methodsEval.MethodInfo;
+import precompute.ReadSystem;
 
 public class SortClass {
 	private String[] pathToFile;
@@ -234,10 +235,13 @@ public class SortClass {
 		Set<String> allClass = new HashSet<String>();
 		for (String path : pathToFile) {
 			StringBuffer sb = new StringBuffer("jar tf ");
-			sb.append(path);
+			sb.append("\""+ path + "\"");
 			
 			ProcessBuilder pb = new ProcessBuilder();
-			pb.command("bash","-c", sb.toString());
+			if (ReadSystem.isUnix) {
+				pb.command("bash", "-c", sb.toString());
+			} else
+				pb.command("CMD", "/C", sb.toString());
 			Process process = pb.start();
 		
 			try (Scanner in = new Scanner(new BufferedInputStream(process.getInputStream()))) {

@@ -1,27 +1,40 @@
 package chain;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
+import methodsEval.MethodInfo;
 
 public class Blacklist {
-	private static Map<String, List<String>> blacklist = new HashMap<String, List<String>>();
+	private static Map<String, int[]> blacklist;
 	
-	public static Map<String, List<String>> getList() {
-		return blacklist;
+	static {
+		blacklist = new HashMap<>();
+		String signature = "java.lang.reflect.Method.invoke(Ljava/lang/Object;[Ljava/lang/Object;)Ljava/lang/Object;";
+		int[] mustTaintArgs = new int[] {0, 1};
+		blacklist.put(signature, mustTaintArgs);
+		signature = "java.lang.Runtime.exec";
+		blacklist.put(signature, null);
 	}
 	
-	// command line function
-	public static void changeList(String clazz, String method, String desc) {
-		String signature = method + ":" + desc;
-		if (!blacklist.containsKey(clazz)) {
-			List<String> methods = new ArrayList<String>();
-			methods.add(signature);
-			blacklist.put(clazz, methods);
-		} else {
-			List<String> m = blacklist.get(clazz);
-			m.add(signature);
-		}
+	public static boolean isBlacklisted(Gadget gadget) {
+		MethodInfo method = gadget.getMethod();
+		String signature = gadget.getClassname() + "." + method.getName() + method.getDesc();
+		if (blacklist.containsKey(signature)) {
+			int[] mustTaintArgs = blacklist.get(signature);
+			if (mustTaintArgs == null) 
+				return true;
+			Set<Integer> taintedArgs = method.getUserControlledArgPos().keySet();
+			for (int i : mustTaintArgs) {
+				if (!taintedArgs.contains(i))
+					return false;
+				// method caller must be directly come from tainted byte stream
+				if (i == 0 && !method.getIsField()) 
+					return false;
+			}
+			return true;
+		} else 
+			return false;
 	}
 }
