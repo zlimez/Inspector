@@ -5,4 +5,7 @@ dryrun/
 # ignore log
 *.log
 # ignore sql file
-*ConfigFile
+/sqlConfigFile
+# all others
+*.dat
+*.txt

@@ -1,20 +1,16 @@
 package chain;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.PrintWriter;
 import java.io.Serializable;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -33,7 +29,6 @@ import hierarchy.SortClass;
 import hierarchy.SortClass.ClassAndBytes;
 import methodsEval.MethodInfo;
 import precompute.DbConnector;
-import precompute.NeoVisualize;
 import precompute.ReadSystem.StoreHierarchy;
 
 public class Enumerate implements Serializable {
@@ -59,7 +54,7 @@ public class Enumerate implements Serializable {
 	private Map<String, Set<byte[]>> inithierarchy; //used to reinitialize hierarchy when analysis is continued 
 	private List<byte[]> inithandlers;
 	
-	public static void main(String[] args) throws ClassNotFoundException, IOException, SQLException, InvalidInputException {
+	public static void runScan() throws ClassNotFoundException, IOException, InvalidInputException {
 		try (Scanner in = new Scanner(System.in)) {
 //			System.out.println("Are you starting a new analysis or do you wish to continue from one of the end points reached in previous analysis? (new/continue)?");
 //			String isNew = in.next();
@@ -78,7 +73,7 @@ public class Enumerate implements Serializable {
 			Enumerate target;
 			if (isNew.equalsIgnoreCase("new")) {
 				in.useDelimiter("\\n|\\r");
-				System.out.println("Specify the paths to the jar files or path to the war file of the application you wish to scan (for paths to jar files shoudl be formatted as such {path1}, {path2}, ...");
+				System.out.println("Specify the paths to the jar files or path to the war file of the application you wish to scan (for paths to jar files shoudl be formatted as such {path1}, {path2}, ...)");
 				String files = in.next();
 				Scanner divider = new Scanner(files);
 				List<String> paths = new ArrayList<>();
@@ -131,7 +126,7 @@ public class Enumerate implements Serializable {
 					});
 					writer.flush();
 					writer.close();
-					System.out.println("Specify the path to the file containing the class:methods (Each class should be written in their canonical name followed by a :, and its methods separated by a , including both the method name and descriptor eg. readObject(Ljava/io/ObjectInputStream;)V");
+					System.out.println("Specify the path to the file containing the class:methods (Each class should be written in their name followed by a column, and its methods separated by a comma including both the method name and descriptor (eg. java.util.HashMap:readObject(Ljava/io/ObjectInputStream;)V)");
 					String file = in.next();
 				
 					Scanner read = new Scanner(new FileInputStream(file));
@@ -235,7 +230,7 @@ public class Enumerate implements Serializable {
 		this.maxDepth = in.nextInt() + this.previousDepth;
 	}
 	
-	public Enumerate(String[] pathsToFiles, boolean dependencyResolved, String ... serverTemp) throws ClassNotFoundException, IOException, SQLException {
+	public Enumerate(String[] pathsToFiles, boolean dependencyResolved, String ... serverTemp) throws ClassNotFoundException, IOException {
 		SortClass sort = new SortClass(pathsToFiles, serverTemp);
 		List<List<ClassAndBytes>> all = sort.getSerialAndAllClasses(dependencyResolved);
 		urls = sort.getUrls();

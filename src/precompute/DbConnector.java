@@ -7,6 +7,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.Scanner;
 
 import precompute.ReadSystem.StoreHierarchy;
 
@@ -15,11 +16,14 @@ import precompute.ReadSystem.StoreHierarchy;
  * launch the database on cloud?
 */ 
 public class DbConnector {
-	public static void main(String[] args) throws IOException, ClassNotFoundException {
+	public static void genJavaEnv() throws IOException, ClassNotFoundException {
 		try (
+			Scanner in = new Scanner(System.in);
 			ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream("./JavaEnv.dat")))
 		) {
-			StoreHierarchy hierarchy = ReadSystem.readJmods("C:/Program Files/AdoptOpenJDK/jdk-11.0.5.10-hotspot/jmods");
+			System.out.println("Provide the path to the jmods directory of your JDK installation (eg. C:/Program Files/AdoptOpenJDK/jdk-11.0.5.10-hotspot/jmods)");
+			in.useDelimiter("\\r|\\n");
+			StoreHierarchy hierarchy = ReadSystem.readJmods(in.next());
 			out.writeObject(hierarchy);
 		} 
 	}
