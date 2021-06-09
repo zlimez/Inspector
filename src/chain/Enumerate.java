@@ -73,7 +73,7 @@ public class Enumerate implements Serializable {
 			Enumerate target;
 			if (isNew.equalsIgnoreCase("new")) {
 				in.useDelimiter("\\n|\\r");
-				System.out.println("Specify the paths to the jar files or path to the war file of the application you wish to scan (for paths to jar files shoudl be formatted as such {path1}, {path2}, ...)");
+				System.out.println("Specify the paths to the jar files or path to the war file of the application you wish to scan (for paths to jar files should be formatted as such {path1}, {path2}, ...)");
 				String files = in.next();
 				Scanner divider = new Scanner(files);
 				List<String> paths = new ArrayList<>();
